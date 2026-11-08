@@ -10,7 +10,7 @@ import time
 from dotenv import load_dotenv
 from openai import OpenAI
 
-from roles import TIMEOUT
+from roles import BOUNDARIES_COMMON, PERSONAS, SAFETY_BLOCK, TIMEOUT
 
 # 入口只加载一次；默认不覆盖已有环境变量，否则 monkeypatch 与环境隔离都会失效。
 load_dotenv()
@@ -116,6 +116,57 @@ def safe_json(text: str) -> dict | None:
     return data if isinstance(data, dict) else None
 
 
+def _flat(value) -> str:
+    """记忆字段可能是列表也可能是字符串，统一成一行。"""
+    if isinstance(value, (list, tuple)):
+        return "、".join(str(v).strip() for v in value if str(v).strip())
+    return str(value or "").strip()
+
+
+def _facts_block(memory: dict, lore: list[str]) -> str:
+    """只放 4 个字段 + lore；不放历史对话，否则 prompt 会越聊越长。"""
+    rows: list[str] = []
+    for key, label in (("preferred_tone", "对方喜欢的语气"),
+                       ("emotion_tags", "最近的情绪"),
+                       ("unresolved_issues", "还没放下的事"),
+                       ("rolling_summary", "之前的谈话概况")):
+        text = _flat(memory.get(key))
+        if text:
+            rows.append(f"{label}：{text}")
+    for item in lore or []:
+        text = _flat(item)
+        if text:
+            rows.append(f"背景：{text}")
+    return "\n".join(rows)
+
+
+def _style_block(p: dict) -> str:
+    """风格区只改四样：称呼 / 语气 / 句长 / emoji，外加 taboos 与示例。"""
+    lines = [
+        f"你是「{p['name']}」，称呼对方为「{p['address']}」。",
+        f"语气：{p['tone']}。每条回复约 {p['sentence_len']} 字以内。",
+        f"表情：{p['emoji']}。",
+        "不要这样说：" + "；".join(p["taboos"]) + "。",
+        "示例只示范语气与句长，不要复用其中任何句子；每次用你自己的话说。",
+    ]
+    for user_text, bot_text in p["mes_example"]:
+        lines.append(f"用户：{user_text}\n你：{bot_text}")
+    return "\n".join(lines)
+
+
 def build_system_prompt(persona_id: str, memory: dict, lore: list[str]) -> str:
-    """S02 空壳：一句占位。S07 实现分区拼接。"""
-    return "你是一个倾听者。"
+    """顺序固定：安全区 → 风格区 → 事实区 → PHI。
+
+    安全区在最前（模型对开头最敏感），PHI 在最后（紧贴用户输入）。
+    事实区是唯一可能为空的一段：空了整段省略，不留空标题。
+    """
+    p = PERSONAS.get(persona_id) or PERSONAS["sister_heart"]
+    parts = [
+        "[安全守则]\n" + SAFETY_BLOCK + "\n[说话边界]\n" + BOUNDARIES_COMMON,
+        "[你的说话方式]\n" + _style_block(p),
+    ]
+    facts = _facts_block(memory if isinstance(memory, dict) else {}, lore or [])
+    if facts:
+        parts.append("[你记得的事]\n" + facts)
+    parts.append("[最后提醒]\n" + p["post_history_instructions"])
+    return "\n\n".join(parts)

@@ -1,7 +1,7 @@
 # 心屿 MindIsle · 项目状态与规则
 
 > **本文件是唯一状态源。** 其他文件（SKILL.md、README、.mdc）只讲方法、格式和摘要，状态一律以这里为准。
-> 最后更新：2026-11-09（S05 完成：app.py 最小闭环 + 10 轮验证，进入 S06）
+> 最后更新：2026-11-08（S06 上线 v0.1 + S07 五张人设卡完成，进入 S08 RULES）
 
 ## 0. 三分钟了解
 
@@ -46,8 +46,8 @@
 | 步 | 周期 | 状态 | 对应执行书 | 主要组件 | 出口（可验证） |
 |---|---|---|---|---|---|
 | S0 | 计划期 | ✅ | 全文 | 五份计划书整合 + 执行书 v1.0 | 执行书冻结，范围不再讨论 |
-| S1 | W1 | 🟨 | §7.1 | 仓库 / 骨架 / `agent.py` / `memory.py` / `app.py` / 部署 | 在线可打开 + 10 轮不崩 + `contract_check` 11/11 + `v0.1` |
-| S2 | W2 | ⬜ | §7.2、§4.3、§4.6、§4.7 | 五套人设 + 状态机 + `guardian_pre_check` | C-09 切 crisis；C-01 不误触；日志无原文 + `v0.2` |
+| S1 | W1 | ✅ | §7.1 | 仓库 / 骨架 / `agent.py` / `memory.py` / `app.py` / 部署 | 在线可打开 + 10 轮不崩 + `contract_check` 11/11 + `v0.1` |
+| S2 | W2 | 🟨 | §7.2、§4.3、§4.6、§4.7 | 五套人设 + 状态机 + `guardian_pre_check` | C-09 切 crisis；C-01 不误触；日志无原文 + `v0.2` |
 | S3 | W3 | ⬜ | §7.3、§4.8、§5 | `guardian_post_check` + 聚合 + 记忆面板 + 主题 + lorebook | 重写日志 `rewrite=1`；风险地板不掉；3 主题不错位 + `v0.3` |
 | S4 | W4 | ⬜ | §7.4、§8 | 97 条测试（考核 48）+ 冻结 + 录屏 | 指标达标 + 测试表齐 + `v1.0` |
 | S5 | +3 天 | ⬜ | §7.5、§12 | 报告 / PPT / 彩排 / 提交清单 | 逐项打勾，三份备份 |
@@ -143,8 +143,10 @@
 - ✅ 外部复核（2026-11-08，另一 agent 独立跑）：两条手工验收全过——①手写坏主文件后一轮真实对话，主文件自动修回、`.bak` SHA-256 前后一致；②改名 `.env` 后 `streamlit run app.py`，首屏红字「未配置 LLM_API_KEY」、输入框 0 个、不出现「我这边刚刚卡了一下」。复核指出的覆盖缺口已补：`test_corrupt_main_recovers_from_backup` 增加「修好后再写一轮，`.bak` 仍是合法旧版」断言（**不新增用例，仍 9 条**），并用变异测试验证（删修复语句 → `1 failed`，恢复 → `15 passed`）。记录在 `docs/evidence/2026-11-09-s03-memory.md` §8
 - ✅ S06 部署准备（2026-11-08）：`app.py:24-45` 增加 `_bridge_secrets()`——线上没有 `.env`，密钥只放在 `st.secrets` 里，必须在 `import memory/agent`（`app.py:42-45`）之前把它铺进环境变量；否则 `DATA_DIR` 已被模块级常量定死，`_config_gate` 会误报缺 Key。实测：把 `.env` 改名、只留 `.streamlit/secrets.toml`（`MOCK_LLM="1"`）时 AppTest 一轮正常回复、0 错误 0 异常，`MOCK_LLM` 确由桥接注入。`main` 已 fast-forward 到 `05ad9c3` 并 push（`4ffdae7..05ad9c3`，S03–S05 全部代码进主干）；部署时**分支选 `main`、主文件路径填 `app.py`**
 - ⚠️ 线上容器磁盘是临时的：Streamlit Cloud 休眠 / 重部署会清空 `data/memory/*.json`，即「记忆」只在本次运行内保留。演示时同一会话连续操作；报告与 PPT 不许写「长期记忆持久化」
+- ✅ **S06 上线（2026-11-08）**：https://xinyu-mindisle.streamlit.app —— 分支 `main`、主文件 `app.py`、Python 3.11、Secrets 填 4 个键；实测打开正常、连聊 2 轮有回复、刷新后会话 id 不变（聊天记录刷新即空，是 S05 §5.2 的既定口径，不是 bug）；**tag `v0.1` 已推**。证据 `docs/evidence/2026-11-09-s06-deploy.md`。未完成：手机流量打开一次（待用户确认）
+- ✅ **S07 人设卡（2026-11-08）**：`roles.py` 104 行（`SAFETY_BLOCK` + `BOUNDARIES_COMMON` + 5 张卡 × 9 字段）；`agent.build_system_prompt` 四段拼装（安全区→风格区→事实区→PHI），空事实整段省略，实测 480–532 字；`tests/test_roles.py` **5 passed（累计 20）**，contract 11/11。踩坑：第一版示例写"不要照抄"，模型仍逐字复读，改成"示例只示范语气与句长，不要复用其中任何句子"才生效。证据 `docs/evidence/2026-11-09-s07-personas.md`。未完成：**盲读 3 人**（答卷 `docs/evidence/2026-11-09-s07-blind-sheet.md`）
 
-**下一步（S06）**：按 `step/S06-deploy-v01.md` 部署 Streamlit Cloud 并打 `v0.1`，出口：公网链接可开 + 手机热点能开。
+**下一步（S08）**：按 `step/S08-rules-table.md` 写 `RULES` 20 条（H01–H10 / W01–W05 / X01–X05），并让 `guardian_pre_check` 返回四个字段。
 
 ## 5. 关键约束与红线
 

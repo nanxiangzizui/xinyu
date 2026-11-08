@@ -186,8 +186,8 @@ dec  = {"role": "listener|guide|crisis", "reason": "default|crisis_shortcircuit|
 | S03 | ✅ | 2026-11-09 | `memory.py` 219 行；9 条测试全过；坏文件自愈与“落盘无原句”已手工验证（`docs/evidence/2026-11-09-s03-memory.md`） |
 | S04 | ✅ | 2026-11-09 | `agent.py` 121 行；6 条测试全过；MOCK 跨进程确定；真实调用 ok=True（`docs/evidence/2026-11-09-s04-agent.md`） |
 | S05 | ✅ | 2026-11-09 | `app.py` 146 行；七步管线；AppTest 10 轮 20 条消息 0 异常；刷新同 sid / 清空真删 / 缺 Key 兜底（`docs/evidence/2026-11-09-s05-app.md`） |
-| S06 | ⬜ | | |
-| S07 | ⬜ | | |
+| S06 | ✅ | 2026-11-09 | 线上 https://xinyu-mindisle.streamlit.app（分支 `main`、入口 `app.py`、Py3.11、Secrets 4 键）；双轮对话正常、刷新同 sid；tag `v0.1` 已推（`docs/evidence/2026-11-09-s06-deploy.md`）。**手机流量验证待补** |
+| S07 | ✅ | 2026-11-09 | `roles.py` 104 行 5 卡 × 9 字段 + `SAFETY_BLOCK` 五卡同文；`build_system_prompt` 四段拼装（480–532 字）；5 条测试通过（累计 20）；真实模型五卡语气可区分（`docs/evidence/2026-11-09-s07-personas.md`）。**盲读 3 人待做**（答卷 `docs/evidence/2026-11-09-s07-blind-sheet.md`） |
 | S08 | ⬜ | | |
 | S09 | ⬜ | | |
 | S10 | ⬜ | | |

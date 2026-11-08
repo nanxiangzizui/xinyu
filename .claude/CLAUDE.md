@@ -1,7 +1,7 @@
 # 心屿 MindIsle · 项目状态与规则
 
 > **本文件是唯一状态源。** 其他文件（SKILL.md、README、.mdc）只讲方法、格式和摘要，状态一律以这里为准。
-> 最后更新：2026-11-08（S23 12 条对话 + 8 条故障注入：128 passed，故障注入修 1 处缺陷；W2 两项盲读仍待做）
+> 最后更新：2026-11-08（S24 四指标达标 + 冻结 v1.0：132 passed；W2 两项盲读仍待做）
 
 ## 0. 三分钟了解
 
@@ -10,7 +10,7 @@
 - 形态：Streamlit 单页聊天 + 侧栏状态 + 记忆面板 + 资源卡
 - 交付：4 周出一个可演示版本 + 3 天材料期，6 人小队
 - 尺度：课程实践作业。安全设计要真实，疗效一句不吹
-- 规模：13 个 py 文件（约 1800 行）+ 128 条测试（考核要求 48，已超目标 97）
+- 规模：13 个 py 文件（约 1900 行）+ 132 条测试（考核要求 48，已超目标 97）
 - 交什么：**.docx 文档**（含 AI 使用附录）+ **17 页 PPT** + **300 秒录屏视频** + 现场三幕。代码不单独计分
 
 ## 1. 权威顺序（冲突时从上往下）
@@ -49,7 +49,7 @@
 | S1 | W1 | ✅ | §7.1 | 仓库 / 骨架 / `agent.py` / `memory.py` / `app.py` / 部署 | 在线可打开 + 10 轮不崩 + `contract_check` 11/11 + `v0.1` |
 | S2 | W2 | 🟨 | §7.2、§4.3、§4.6、§4.7 | 五套人设 + 状态机 + `guardian_pre_check` | C-09 切 crisis；C-01 不误触；日志无原文 + `v0.2` |
 | S3 | W3 | ✅ | §7.3、§4.8、§5 | `guardian_post_check` + 聚合 + 记忆面板 + 主题 + lorebook | 重写日志 `rewrite=1`；风险地板不掉；3 主题不错位 + `v0.3` |
-| S4 | W4 | ⬜ | §7.4、§8 | 97 条测试（考核 48）+ 冻结 + 录屏 | 指标达标 + 测试表齐 + `v1.0` |
+| S4 | W4 | ✅ | §7.4、§8 | 97 条测试（考核 48）+ 冻结 + 录屏 | 指标达标 + 测试表齐 + `v1.0` |
 | S5 | +3 天 | ⬜ | §7.5、§12 | 报告 / PPT / 彩排 / 提交清单 | 逐项打勾，三份备份 |
 
 每周五的验收是**硬门**：不过就打回，不许"下周补"。
@@ -108,7 +108,7 @@
 ├─ metrics.py        四指标脚本（只读测试集）
 ├─ utils.py          按需创建：第 2 次重复才搬进来（≤100 行）
 ├─ tests/            test_memory / test_agent / test_roles / test_log /
-│                    test_guardian / test_flow / test_theme / test_fault（目前 128 条，目标是 97）
+│                    test_guardian / test_flow / test_theme / test_fault / test_metrics（目前 132 条，已超目标 97）
 ├─ step/             26 个分步执行文件 + README（怎么做看这里）
 ├─ data/memory/      memory.json（不进仓库）
 ├─ data/logs/        YYYY-MM-DD.jsonl（不进仓库）
@@ -179,7 +179,9 @@
 
 - ✅ **S23 12 条对话 + 8 条故障注入（2026-11-08）**：新建 `tests/pipeline.py` 92 行（`Chat` 驱动真实 `app.py`，`say()` 断言消息 +2，`rows()` 按 sid / action 过滤）与 `tests/test_fault.py` 146 行（F-01~F-08）；`tests/test_flow.py` 9 → **21 条**（C-01~C-12 全走七步管线）；`tests/conftest.py` 29 行（sys.path + autouse `offline` 夹具，环境变量 + `setattr` 模块常量双保险）。**128 passed**（+20），contract **11/11 + 5/5 + 20/20**。故障注入挖出并修 1 处真实缺陷：`write_memory` 的 `mkdir` 在 `try` 外，DATA_DIR 不可写时会把整轮打成兜底句（已移进 try，`memory.py` 340 行）；另补 `safe_handle` 崩轮的结构化日志（`rule_ids=["PIPELINE_FAILED"]`，`app.py` 326 行）。破坏性验证 2 次：F-03 换成"合法 JSON 缺字段" → `1 failed`；C-07 `ESCALATE_AT=4` → `1 failed`。七处口径修正：①step 的 12 / 8 / 97 是旧基数，实际 21 / 8 / **128**；②conftest 光 `setenv` 不够；③F-01 的 reason 字段不在 9 字段白名单，改记 `PIPELINE_FAILED`（异常类型名留在 WARN）；④F-07 实际路径是"规则先命中 → 不调复核"，断言改为 `REVIEW_SYS` 未被调用 + echo 重写器复检兜底；⑤F-08 **不截断** 5000 字（截断可能丢末尾危机词，违反只升不降；实测秒级返回）；⑥F-05 只断言 WARN 出现；⑦C-08 用同 sid 新建 AppTest 模拟刷新。证据 `docs/evidence/2026-11-08-s23-dialogue-fault.md`
 
-**下一步（S24）**：四指标脚本 `metrics.py`（只读测试集：高危召回 / 误拦率 / 首响时延 / 重写率）+ 冻结 **v1.0**，按 `step/S24-*.md` 执行；随后 S25 报告、S26 PPT 与 300 秒录屏。
+- ✅ **S24 四指标 + v1.0（2026-11-08）**：新建 `metrics.py` 209 行（只跑规则层与状态机，不调模型）：`HIGH_RISK` 10 条与 `D_CASES` 前 10 条同源、`NORMAL` 20 条、`ROLE_CASES` 12 条、`TEN_TURNS` 10 轮（含风险地板）。实测**高危召回 10/10 = 100%**、**普通误拦 0/20 = 0%**、**角色准确率 12/12 = 100%**、**连续 10 轮 10/10**，四条均达标；`python metrics.py` 自动写 `docs/evidence/metrics.md`，两次运行 SHA256 一致（`8A883B43…`）；`tests/test_metrics.py` 4 条守卫（与 `D_CASES` 同源 / 条数冻结 / 确定性 / 目标线）。破坏性验证：`NORMAL` 删一条 → `test_set_sizes_are_frozen` **1 failed**，复原后 **132 passed**；contract **11/11 + 5/5 + 20/20**；`v1.0` 已打。口径修正：①step 的 "97 passed" 是旧基数（实际 132）；②`write_md` 模板里的转义反引号会落盘成 `\``，已去掉反斜杠，pytest 不再报 DeprecationWarning；③"连续 10 轮"目标列原渲染成 "≥100%"，改显式 "10/10"；④真正在考角色切换的只有 3 条（12 条里 9 条 listener，全判 listener 也到 75%），已写进 `metrics.md` 的自查，防止拿 100% 当"切换很准"。证据 `docs/evidence/metrics.md` + `docs/evidence/2026-11-08-s24-metrics.md`
+
+**下一步（S25）**：项目报告 **.docx**（正文 12–16 页 + 附录 A–D；附录 A 为 AI 使用说明），按 `step/S25-*.md` 与 `docs/比赛要求对照与提交计划.md` 执行；随后 S26 十七页 PPT + 300 秒录屏。
 
 - ✅ **规则缺口补丁 + 复核四项收尾（2026-11-08）**：`roles.py` 只改 4 条正则（X01 否定句补"没有想过/从没想过要"、X03 补"论文/作业/报道"反向分支、H04 补"天台 + 跳下去"并负向断言排除游泳、H06 补"买/囤 + 安眠药"）；`tests/test_guardian.py` +5 条 `GAP_CASES`（D-29~D-32 + 一条护栏），先红后绿；**53 passed**，contract **11/11 + 5/5 + 20/20**。执行书同步升 **v1.2**（附录 B 四条正则 + 变更记录 + 新增附录 D-5，注明不计入分母）。四处决策的处理：①证据日期**不改名**，13 个证据文件头加"实际生成于 2026-11-08"；②规则按上一条补；③S08–S13 拆 5 个提交 + `v0.2`；④执行书 :1128 的"39 passed"旧基数不动。证据 `docs/evidence/2026-11-08-rule-gap-patch.md`
 

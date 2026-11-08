@@ -10,7 +10,7 @@
 | | |
 |---|---|
 | 计划 | ✅ 执行书已冻结（文件内版本 v1.2）|
-| 代码 | 🟨 S1 完成、S2 主体落地（`v0.2` 已打）、S13–S22 完成（`v0.3` 已打）：`pytest` **108 passed**，`contract_check` **11/11 + 5/5 + 20/20**，12 条端到端场景通过，28 条规则用例逐条编号；S2 还剩人设/危机文案盲读 |
+| 代码 | 🟨 S1 完成、S2 主体落地（`v0.2` 已打）、S13–S23 完成（`v0.3` 已打）：`pytest` **128 passed**，`contract_check` **11/11 + 5/5 + 20/20**，12 条端到端场景 + 12 条对话 + 8 条故障注入通过，28 条规则用例逐条编号；S2 还剩人设/危机文案盲读 |
 | 交付 | 4 周出可演示版本 + 3 天材料期，6 人小队 |
 | 赛事 | 杭州电子科技大学第二届 AIGC 应用创新大赛 · **赛题一（AI 辅助开发·创意产品原型）** |
 
@@ -86,8 +86,8 @@ pytest -q
 ├─ metrics.py        四指标脚本（S24 计划，只读测试集）
 ├─ contract_check.py 11 个签名 + 5 个常量 + 20 条规则校验
 ├─ step/             S01–S26 分步执行手册（怎么做看这里）
-├─ tests/            test_guardian(52) / test_memory(26) / test_flow(9) / test_theme(7)
-│                    test_agent(6) / test_roles(6) / test_log(2) —— 合计 108（考核要求 48）
+├─ tests/            test_guardian(52) / test_memory(26) / test_flow(21) / test_theme(7)
+│                    test_agent(6) / test_roles(6) / test_log(2) / test_fault(8) —— 合计 128（考核要求 48）
 ├─ data/memory/      memory.json（不进仓库）
 └─ docs/             项目文档、PPT、证据、比赛要求
 ```

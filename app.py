@@ -205,12 +205,20 @@ def handle(text: str, sid: str, history: list[dict], persona_id: str) -> dict:
 
 def safe_handle(text: str, sid: str, history: list[dict], persona_id: str) -> dict:
     """任何异常都变成一句人话；日志只记类型名，不记原文与堆栈。"""
+    t0 = time.perf_counter()
     try:
         return handle(text, sid, history, persona_id)
     except Exception as exc:                       # 边界：界面永不显示 traceback
         logger.warning("pipeline_failed session=%s error=%s",
                        sid[:6], type(exc).__name__)
         # 判危失败时风险未知，按中风险记录；绝不按 L1 当“没事”。
+        # [SAFE] S23 F-01：崩掉的这一轮也要留一行结构化日志，否则“日志行数 = 用户轮次”
+        # 在故障时就对不上。异常类型名只进上面的 WARN，结构字段里只放 PIPELINE_FAILED 标记。
+        try:
+            _log_turn(sid, "L2", "listener", ["PIPELINE_FAILED"],
+                      "template_fallback", 0, t0)
+        except Exception:                          # 边界：日志本身失败也不许抛回界面
+            pass
         return {"reply": FALLBACK_LINE, "level": "L2", "role": "listener",
                 "reason": "default", "degraded": True}
 

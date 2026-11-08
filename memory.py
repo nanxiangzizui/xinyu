@@ -190,11 +190,13 @@ def read_memory(session_id: str) -> dict:
 def write_memory(session_id: str, data: dict) -> None:
     """白名单过滤后原子写：先备份旧文件，再写 .tmp，最后 os.replace。"""
     path = _path(session_id)
-    path.parent.mkdir(parents=True, exist_ok=True)
     clean = _filter(data)
     clean["last_updated"] = _now()
     payload = json.dumps(clean, ensure_ascii=False, indent=2)
     try:
+        # [SAFE] S23 F-04：建目录也算磁盘写入。放在 try 外面时，DATA_DIR 不可写会让异常
+        # 一路冒到 safe_handle，整轮对话被换成兜底句——与“写失败不影响对话”的约定不符。
+        path.parent.mkdir(parents=True, exist_ok=True)
         if path.exists():
             shutil.copy2(path, _bak(path))
         _replace(path, payload)

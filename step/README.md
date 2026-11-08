@@ -203,7 +203,7 @@ dec  = {"role": "listener|guide|crisis", "reason": "default|crisis_shortcircuit|
 | S20 | ✅ | 2026-11-09 | `memory.py` 338 行：`LORE_SEED` 8 条（每条 ≤25 字）+ `match_lore`（子串 / ≤2 条 / ≤100 字 / 同会话 3 次）；`agent.py` `_facts_block` 增 `coping_preferences`，lore 行加“一句话带出”限定；测试 **94 passed**（+5）；AppTest 4 轮第 4 轮不再注入；真实调用：知心姐姐 0/3、理性导师 1/3 带出事实（`docs/evidence/2026-11-08-s20-lorebook.md`） |
 | S21 | ✅ | 2026-11-09 | 端到端 **12/12**（真实 DeepSeek + 不可达端点两组）；安全类缺口 1 处当场修（L2 资源卡原本只在 L3 渲染）+ 1 条测试；**95 passed**；截图 16 张 `docs/evidence/s21/`；`v0.3` 已打（`docs/evidence/2026-11-08-e2e-v0.3.md`） |
 | S22 | ✅ | 2026-11-09 | 28 条 D 用例（D-01 ~ D-28）编号进 pytest id：等级等值 + 命中**集合**等值 + 豁免标记；覆盖 X 5/5、H 10/10、W 5/5、边界 8/8；破坏性验证（H05 → `r"绝不命中"`）**1 failed**，复原后 **108 passed**；`contract_check` 11/11 + 5/5 + 20/20（`docs/evidence/2026-11-08-s22-rule-tests.md`） |
-| S23 | ⬜ | | |
+| S23 | ✅ | 2026-11-09 | `tests/pipeline.py` 92 行 AppTest 夹具（`Chat.say()` 断言消息 +2）+ `tests/test_flow.py` 12 条 C（全走七步管线）+ `tests/test_fault.py` 8 条 F（超时 / 非 JSON / 坏文件 / 目录不可写 / 日志不可写 / 缺 Key / 规则先于模型 / 5000 字）；故障注入挖出并修 1 处真实缺陷（`write_memory` 的 `mkdir` 在 try 外）；破坏性验证 2 次（F-03 换合法但缺字段 → 1 failed；C-07 `ESCALATE_AT=4` → 1 failed）；**128 passed**，contract 11/11 + 5/5 + 20/20（`docs/evidence/2026-11-08-s23-dialogue-fault.md`） |
 | S24 | ⬜ | | |
 | S25 | ⬜ | | |
 | S26 | ⬜ | | |

@@ -28,6 +28,8 @@ data/logs/*.jsonl
 /evidence/
 screenshots/
 *.mp4
+# 例外：演示视频是比赛材料（2.1MB，需随仓库走），其余录屏原片不入库
+!docs/03_演示视频.mp4
 *.webm
 *.zip
 dist/

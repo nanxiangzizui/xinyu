@@ -183,9 +183,9 @@ dec  = {"role": "listener|guide|crisis", "reason": "default|crisis_shortcircuit|
 |---|---|---|---|
 | S01 | ⬜ | | |
 | S02 | ✅ | 2026-11-09 | 7 个 .py 空壳；contract 11/11 + 5/5；改签名/改常量已验红（`docs/evidence/2026-11-09-s02-contract.md`） |
-| S03 | ⬜ | | |
-| S04 | ⬜ | | |
-| S05 | ⬜ | | |
+| S03 | ✅ | 2026-11-09 | `memory.py` 219 行；9 条测试全过；坏文件自愈与“落盘无原句”已手工验证（`docs/evidence/2026-11-09-s03-memory.md`） |
+| S04 | ✅ | 2026-11-09 | `agent.py` 121 行；6 条测试全过；MOCK 跨进程确定；真实调用 ok=True（`docs/evidence/2026-11-09-s04-agent.md`） |
+| S05 | ✅ | 2026-11-09 | `app.py` 146 行；七步管线；AppTest 10 轮 20 条消息 0 异常；刷新同 sid / 清空真删 / 缺 Key 兜底（`docs/evidence/2026-11-09-s05-app.md`） |
 | S06 | ⬜ | | |
 | S07 | ⬜ | | |
 | S08 | ⬜ | | |

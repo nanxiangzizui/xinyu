@@ -1,7 +1,7 @@
 # 心屿 MindIsle · 项目状态与规则
 
 > **本文件是唯一状态源。** 其他文件（SKILL.md、README、.mdc）只讲方法、格式和摘要，状态一律以这里为准。
-> 最后更新：2026-11-09（比赛要求已接入并改交付规格；S02 完成，进入 S03）
+> 最后更新：2026-11-09（S05 完成：app.py 最小闭环 + 10 轮验证，进入 S06）
 
 ## 0. 三分钟了解
 
@@ -46,7 +46,7 @@
 | 步 | 周期 | 状态 | 对应执行书 | 主要组件 | 出口（可验证） |
 |---|---|---|---|---|---|
 | S0 | 计划期 | ✅ | 全文 | 五份计划书整合 + 执行书 v1.0 | 执行书冻结，范围不再讨论 |
-| S1 | W1 | 🟨 | §7.1 | 仓库 / 骨架 / `agent.py` / `memory.py` 空壳 / `app.py` / 部署 | 在线可打开 + 10 轮不崩 + `contract_check` 11/11 + `v0.1` |
+| S1 | W1 | 🟨 | §7.1 | 仓库 / 骨架 / `agent.py` / `memory.py` / `app.py` / 部署 | 在线可打开 + 10 轮不崩 + `contract_check` 11/11 + `v0.1` |
 | S2 | W2 | ⬜ | §7.2、§4.3、§4.6、§4.7 | 五套人设 + 状态机 + `guardian_pre_check` | C-09 切 crisis；C-01 不误触；日志无原文 + `v0.2` |
 | S3 | W3 | ⬜ | §7.3、§4.8、§5 | `guardian_post_check` + 聚合 + 记忆面板 + 主题 + lorebook | 重写日志 `rewrite=1`；风险地板不掉；3 主题不错位 + `v0.3` |
 | S4 | W4 | ⬜ | §7.4、§8 | 97 条测试（考核 48）+ 冻结 + 录屏 | 指标达标 + 测试表齐 + `v1.0` |
@@ -135,8 +135,11 @@
 - ✅ 比赛要求已接入（2026-11-08）：通知已读并存入 `docs/AIGC大赛通知-2026.docx`；产出 `docs/比赛要求对照与提交计划.md`；S25 改 Word + 附录 A、S26 改 17 页 PPT + 300 秒视频；git remote 已通（github.com/nanxiangzizui/xinyu）、DeepSeek key 实测可用
 - ⬜ **当前教学周未确认**——决定到"第 12 周推荐截止"还剩 1/2/3 周，直接决定砍到第几级
 - ✅ S02（2026-11-09）：`roles.py` + 五模块空壳 + `contract_check.py` 落地，跑出 **11/11 + 5/5**；故意改签名、改 `TIMEOUT` 两条人工验红；证据 `docs/evidence/2026-11-09-s02-contract.md`
+- ✅ S03（2026-11-09）：`memory.py` 全量 219 行（8 字段 + `summary_at_turn` 白名单 / 原子写 + `.bak` / 坏文件自愈 / `scrub` / 真删）；`tests/test_memory.py` **9 passed**；手工验证落盘无原句、坏文件回默认值；证据 `docs/evidence/2026-11-09-s03-memory.md`。口径修正：`summary_at_turn` 按执行书 §5.1.1 定义为“上次压缩轮次”，**不每轮自增**（否则 S17 节流失效）
+- ✅ S04（2026-11-09）：`agent.py` 121 行（`call_llm` / MOCK 三剧本 / `safe_json` / 懒加载客户端）；`tests/test_agent.py` **6 passed**（累计 15）；真实调用 `ok=True` 2769ms；证据 `docs/evidence/2026-11-09-s04-agent.md`。口径修正：本机 openai 1.109.1 的 `create()` 不接受 `max_retries`，`timeout=15` 与 `max_retries=1` 放在客户端构造上，否则会被兜底吞成 `TypeError`
+- ✅ S05（2026-11-09）：`app.py` 146 行（首屏免责声明 / 聊天区 / 侧栏 / URL 会话 id / 固定七步管线 / 三层兜底）；AppTest 连续 10 轮 **20 条消息 0 异常**，刷新同 sid、记忆面板可读；清空时旧记忆三文件真删并换新 sid；缺 Key 非 MOCK 出兜底句不露堆栈；截图 `docs/evidence/2026-11-09-s05-*.png`；证据 `docs/evidence/2026-11-09-s05-app.md`
 
-**下一步（S03）**：按 `step/S03-memory-core.md` 实现 `memory.py` 全量（9 字段白名单 / 原子写 / 损坏恢复）+ `tests/test_memory.py` 9 条；再按 S04 填 `agent.py`。
+**下一步（S06）**：按 `step/S06-deploy-v01.md` 部署 Streamlit Cloud 并打 `v0.1`，出口：公网链接可开 + 手机热点能开。
 
 ## 5. 关键约束与红线
 

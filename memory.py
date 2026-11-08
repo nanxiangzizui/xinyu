@@ -12,7 +12,8 @@ import shutil
 from datetime import datetime, timezone
 from pathlib import Path
 
-from roles import SUMMARY_MAX
+from agent import SUMMARY_SYS, call_llm
+from roles import SUMMARY_EVERY, SUMMARY_MAX
 
 logger = logging.getLogger(__name__)
 
@@ -39,6 +40,12 @@ ROLE_VALUES = {"listener", "guide", "crisis"}
 ITEM_CAPS = {"emotion_tags": 5, "unresolved_issues": 3, "coping_preferences": 5}
 ITEM_MAX = {"emotion_tags": 4, "unresolved_issues": 20, "coping_preferences": 20}
 TEXT_MAX = {"preferred_tone": 20, "role_switch_reason": 40, "rolling_summary": SUMMARY_MAX}
+
+# [SAFE] 摘要的两道隐私闸门：送进模型前只给 scrub 过的 40 字短句；
+# 模型输出里若出现任一句 8 字以上原句，整次压缩作废（宁可摘要不更新，也不留原句）。
+LINE_MAX = 40
+QUOTE_MIN = 8
+CRISIS_NOTE = "本会话出现过危机信号，需要保持关注。"
 
 SCRUB_RULES = [
     (re.compile(r"1[3-9]\d{9}"), "[手机]"),
@@ -207,6 +214,69 @@ def update_memory(session_id: str, user_text: str, reply: str) -> dict:
     mem["last_updated"] = _now()
     write_memory(session_id, mem)
     return mem
+
+
+def should_compress(turn: int, summary_len: int, summary_at_turn: int, level: str) -> bool:
+    """三个条件任一成立就压：满 5 轮 / 超 200 字 / 首次进入 L3 留档。"""
+    if level == "L3" and summary_at_turn == 0:
+        return True
+    if turn - summary_at_turn >= SUMMARY_EVERY:
+        return True
+    return summary_len > SUMMARY_MAX
+
+
+def recent_lines(history: list[dict]) -> list[str]:
+    """把最近的对话切成短句**并 scrub**；绝不把完整原话交给摘要模型。"""
+    out: list[str] = []
+    for msg in (history or [])[-(SUMMARY_EVERY * 2):]:
+        text = msg.get("content") if isinstance(msg, dict) else ""
+        if isinstance(text, str) and text.strip():
+            out.append(_scrub(text.strip())[:LINE_MAX])
+    return out
+
+
+def _quotes_source(summary: str, sources: list[str]) -> bool:
+    """摘要里是否出现源句的 8 字以上片段；命中说明模型在抄原话。"""
+    for src in sources:
+        for i in range(max(0, len(src) - QUOTE_MIN + 1)):
+            if src[i:i + QUOTE_MIN] in summary:
+                return True
+    return False
+
+
+def compress_summary(old_summary: str, lines: list[str]) -> str | None:
+    """压一次摘要；失败 / 抄原句 / 无新内容都返回 None，调用方保留旧值。"""
+    recent = [_scrub(str(x))[:LINE_MAX] for x in (lines or [])[-SUMMARY_EVERY * 2:]
+              if str(x).strip()]
+    if not recent:
+        # 没有新对话就拿旧摘要自压，只会越压越空（SKILL §3.3 的坑）。
+        return None
+    prompt = ("旧摘要：" + (old_summary or "无") + "\n近期对话：\n" + "\n".join(recent))
+    out = call_llm([{"role": "system", "content": SUMMARY_SYS},
+                    {"role": "user", "content": prompt}], temperature=0.3)
+    if not out.get("ok") or not out.get("text"):
+        logger.warning("summary_call_failed")
+        return None
+    summary = " ".join(str(out["text"]).split())
+    if not summary:
+        return None
+    if _quotes_source(summary, recent):
+        logger.warning("summary_quote_blocked")
+        return None
+    if len(summary) > SUMMARY_MAX:
+        logger.warning("summary_truncated len=%s", len(summary))
+        summary = summary[:SUMMARY_MAX]
+    return summary
+
+
+def mark_crisis_summary(session_id: str, turn: int) -> str:
+    """首次 L3 的留档：不调模型，只追加一行标记——断网也必须能留档。"""
+    mem = read_memory(session_id)
+    base = mem["rolling_summary"].strip()
+    mem["rolling_summary"] = ((base + "；" + CRISIS_NOTE) if base else CRISIS_NOTE)[:SUMMARY_MAX]
+    mem["summary_at_turn"] = turn
+    write_memory(session_id, mem)
+    return mem["rolling_summary"]
 
 
 def clear_memory(session_id: str) -> bool:

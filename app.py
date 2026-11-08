@@ -45,7 +45,9 @@ from coordinator import (aggregate_level, coordinator_decide,  # noqa: E402
                          enforce_cooldown)
 from guardian import CRISIS_REPLY, guardian_post_check, guardian_pre_check  # noqa: E402
 from logger import log_turn, session_hash                     # noqa: E402
-from memory import clear_memory, match_lore, read_memory, update_memory  # noqa: E402
+from memory import (clear_memory, compress_summary, mark_crisis_summary,  # noqa: E402
+                    match_lore, read_memory, recent_lines, should_compress,
+                    update_memory, write_memory)
 from resources import pick_resources                          # noqa: E402
 from roles import COOLDOWN, N_WINDOW                          # noqa: E402
 
@@ -118,12 +120,39 @@ def _effective_level(raw: str) -> tuple[str, bool]:
     return eff, eff != raw
 
 
+def _maybe_compress(sid: str, level: str, role: str,
+                    history: list[dict], t0: float) -> None:
+    """摘要节流：满 5 轮 / 超 200 字 / 首次 L3 压一次；失败保留旧摘要。
+
+    [SAFE] L3 分支不调模型：危机回复必须断网可用，这里只写结构化标记留档。
+    """
+    mem = read_memory(sid)
+    turn = st.session_state.get("turn", 0)
+    if not should_compress(turn, len(mem["rolling_summary"]),
+                           mem["summary_at_turn"], level):
+        return
+    if level == "L3":
+        mark_crisis_summary(sid, turn)
+        _log_turn(sid, level, role, ["SUMMARY_CRISIS"], "summary_compress", 0, t0)
+        return
+    new_summary = compress_summary(mem["rolling_summary"], recent_lines(history))
+    if not new_summary:
+        # 没压成就不写盘：旧摘要比空摘要有用，也不许把“没压成”记成压过了。
+        _log_turn(sid, level, role, ["SUMMARY_FAILED"], "summary_compress", 0, t0)
+        return
+    mem["rolling_summary"] = new_summary
+    mem["summary_at_turn"] = turn
+    write_memory(sid, mem)
+    _log_turn(sid, level, role, [], "summary_compress", 0, t0)
+
+
 def _crisis_result(sid: str, pre: dict, escalated: bool, t0: float) -> dict:
     """L3 短路：固定模板 + 资源卡，不调 LLM、不加载人设、不写记忆。"""
     _mark_crisis()
     # 聚合升级与原始 L3 用不同 action，报告里才能分清“自己说出来的”和“被窗口推上来的”。
     action = "aggregate_escalate" if escalated else "short_circuit"
     _log_turn(sid, "L3", "crisis", pre["rule_ids"], action, 0, t0)
+    _maybe_compress(sid, "L3", "crisis", [], t0)
     return {"reply": CRISIS_REPLY, "level": "L3", "role": "crisis",
             "reason": "crisis_shortcircuit",
             "degraded": False, "short_circuit": True}
@@ -177,6 +206,7 @@ def handle(text: str, sid: str, history: list[dict], persona_id: str) -> dict:
                                eff_level, dec["role"])
     reply = post.get("fixed_reply") or resp.get("text") or FALLBACK_LINE
     update_memory(sid, text, reply)                                # 7 记
+    _maybe_compress(sid, eff_level, dec["role"], history, t0)      # 7.5 摘要节流
     return _log_and_result(sid, pre, dec, eff_level, escalated,
                            post, resp, reply, t0)
 

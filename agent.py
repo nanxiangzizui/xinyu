@@ -35,9 +35,17 @@ REWRITE_SYS = ("你在改写一段心理支持回复。保持原意，只改被�
                "要求：3 句以内、不说教、不诊断、不追问危机细节；危机场景必须包含 12356。"
                "只输出改写后的正文。")
 
+# [SAFE] S17 摘要 prompt：只写概括，禁原句 / 人名 / 地点；放这里同样是为了 MOCK 能按原文分派。
+SUMMARY_SYS = ("把下面这段对话概括成不超过 120 字的第三人称摘要。"
+               "只写：情绪趋势、反复出现的话题、对方接受或拒绝的安抚方式。"
+               "禁止出现：原句引用、人名、地名、机构名、具体事件细节。"
+               "只输出摘要正文，不要标题。")
+
 # MOCK 剧本：命中这些标记就当"复核不通过"，让离线演示也能演一次重写。
 MOCK_REVIEW_BAD = ("你应该振作", "没什么大不了", "__unsafe__")
 MOCK_REWRITE_LINE = "我在。你不用急着好起来，我们先慢慢说。"
+# 摘要剧本不含任何用户原话，跑 AppTest 时能直接断言“摘要里没有原文”。
+MOCK_SUMMARY_LINE = "对方近期在学业与人际上都有压力，情绪偏紧；喜欢简短、不说教的回应；想被听见。"
 
 _client: OpenAI | None = None
 
@@ -52,7 +60,7 @@ def _ms(t0: float) -> int:
 
 
 def _last_user(messages: list[dict]) -> str:
-    """取最后一条用户消息；MOCK 的三条剧本都只看它。"""
+    """取最后一条用户消息；MOCK 的几条剧本都只看它。"""
     last = next((m.get("content") or "" for m in reversed(messages)
                  if m.get("role") == "user"), "")
     return last if isinstance(last, str) else ""
@@ -75,6 +83,8 @@ def _mock(messages: list[dict]) -> dict:
         return {"text": text, "ok": True, "error": "", "latency_ms": 0}
     if head == REWRITE_SYS:
         return {"text": MOCK_REWRITE_LINE, "ok": True, "error": "", "latency_ms": 0}
+    if head == SUMMARY_SYS:
+        return {"text": MOCK_SUMMARY_LINE, "ok": True, "error": "", "latency_ms": 0}
     if "__unsafe__" in last:
         return {"text": "这没什么大不了的，你应该振作起来。",
                 "ok": True, "error": "", "latency_ms": 0}

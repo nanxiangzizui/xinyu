@@ -121,3 +121,79 @@ def test_invalid_session_id_rejected(mem):
         mem.clear_memory("../evil")
     with pytest.raises(ValueError):
         mem.read_memory("../evil")
+
+
+# --- S17 摘要节流：三个触发条件 + 两道隐私闸门 ---
+
+def test_should_compress_after_five_turns(mem):
+    """10. turn=6 / 上次压缩在 1 → 满 5 轮，触发。"""
+    assert mem.should_compress(6, 0, 1, "L1") is True
+
+
+def test_should_compress_when_summary_too_long(mem):
+    """11. 摘要 210 字 → 超长触发（与轮次无关）。"""
+    assert mem.should_compress(1, mem.SUMMARY_MAX + 10, 1, "L2") is True
+
+
+def test_should_compress_not_yet(mem):
+    """12. 才过 2 轮且摘要不长 → 不压，避免每轮都烧一次调用。"""
+    assert mem.should_compress(3, 50, 1, "L1") is False
+
+
+def test_first_crisis_compresses_once(mem):
+    """13. 首次 L3 立即压一次；已压过（summary_at_turn>0）就不再压。"""
+    assert mem.should_compress(1, 0, 0, "L3") is True
+    assert mem.should_compress(2, 0, 1, "L3") is False
+
+
+def test_compress_failure_keeps_old_summary(mem, monkeypatch):
+    """14. 模型失败 → 返回 None；调用方保留旧摘要，绝不写空。"""
+    monkeypatch.setattr(mem, "call_llm", lambda *a, **k: {"ok": False, "text": ""})
+    assert mem.compress_summary("旧摘要还在", ["最近考试压力大"]) is None
+
+
+def test_compress_truncates_to_max(mem, monkeypatch):
+    """15. 模型话痨 → 硬截断到 200 字。"""
+    monkeypatch.setattr(mem, "call_llm",
+                        lambda *a, **k: {"ok": True, "text": "啊" * 300})
+    got = mem.compress_summary("", ["最近考试压力大"])
+    assert got is not None and len(got) == mem.SUMMARY_MAX
+
+
+def test_compress_blocks_verbatim_quote(mem, monkeypatch):
+    """16. 摘要里出现 8 字以上原句 → 整次作废，宁可摘要不更新。"""
+    monkeypatch.setattr(mem, "call_llm",
+                        lambda *a, **k: {"ok": True, "text": "他说我今天被老师批评了很难受"})
+    assert mem.compress_summary("", ["我今天被老师批评了很难受"]) is None
+
+
+def test_compress_empty_history_returns_none(mem, monkeypatch):
+    """17. 没有新对话就不要拿旧摘要自压（会越压越空）。"""
+    called = []
+    monkeypatch.setattr(mem, "call_llm", lambda *a, **k: called.append(1) or {"ok": True, "text": "x"})
+    assert mem.compress_summary("旧摘要", []) is None
+    assert called == []
+
+
+def test_recent_lines_scrubs_and_caps(mem):
+    """18. 送进模型的短句已脱敏、且每条 ≤40 字。"""
+    lines = mem.recent_lines([{"role": "user", "content": "我手机13800138000，最近考试压力大"}])
+    assert len(lines) == 1 and "[手机]" in lines[0]
+    assert "13800138000" not in lines[0] and len(lines[0]) <= mem.LINE_MAX
+
+
+def test_mark_crisis_summary_writes_note(mem):
+    """19. 首次 L3 留档：不调模型也写摘要与 summary_at_turn。"""
+    mem.write_memory("u8", {"rolling_summary": "之前聊过学业"})
+    got = mem.mark_crisis_summary("u8", 4)
+    assert mem.CRISIS_NOTE in got and got.startswith("之前聊过学业")
+    mem2 = mem.read_memory("u8")
+    assert mem2["summary_at_turn"] == 4
+    assert mem.CRISIS_NOTE in mem2["rolling_summary"]
+
+
+def test_mock_summary_has_no_user_text(mem, monkeypatch):
+    """20. MOCK 剧本：摘要走固定文本，AppTest 能据此断言“摘要里没有原文”。"""
+    monkeypatch.setenv("MOCK_LLM", "1")
+    got = mem.compress_summary("", ["我室友最近不理我，我很难受"])
+    assert got and "室友" not in got and "难受" not in got

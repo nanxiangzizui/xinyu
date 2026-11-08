@@ -1,7 +1,7 @@
 # 心屿 MindIsle · 项目状态与规则
 
 > **本文件是唯一状态源。** 其他文件（SKILL.md、README、.mdc）只讲方法、格式和摘要，状态一律以这里为准。
-> 最后更新：2026-11-08（S16 会话聚合 + 风险地板：69 passed；W2 两项盲读仍待做）
+> 最后更新：2026-11-08（S17 摘要节流：80 passed；W2 两项盲读仍待做）
 
 ## 0. 三分钟了解
 
@@ -164,7 +164,9 @@
 
 - ✅ **S16 会话聚合 + 风险地板（2026-11-08）**：`coordinator.py` 46 → 89 行，新增 `risk_floor` / `aggregate_level`（`ESCALATE_AT=3`，窗口 `N_WINDOW=5` 取自 roles）；`app.py` 275 → 303 行，`_effective_level()` 读写 `session_state["levels"]`（只存最近 5 条），`handle()` 拆出 `_crisis_result` / `_log_and_result`，全部下游改用 `eff_level`；升级轮日志 `action=aggregate_escalate`（单行，不重复计轮）。**69 passed（+5）**，contract **11/11 + 5/5 + 20/20**；AppTest 连发 3 次“没意思” → 第 3 轮 `L3 aggregate_escalate crisis`、资源卡 3 张、`calls=[]`；随后 3 轮平静句停在 L2 不再短路（C-12）。四处口径修正：①地板取“出现过 L2+ → L2”而非 step 的 `max(history)`（后者与测试表 #2 自相矛盾）；②窗口存 raw 等级，只有升 L3 那轮存 L3；③升级只数恰好 L2；④升级只写一行日志。证据 `docs/evidence/2026-11-08-s16-window-floor.md`
 
-**下一步（S17）**：摘要节流（`SUMMARY_EVERY=5` / `SUMMARY_MAX=200`）与 `rolling_summary`，prompt 禁人名。
+- ✅ **S17 摘要节流（2026-11-08）**：`memory.py` 225 → 295 行（`should_compress` / `recent_lines` / `_quotes_source` / `compress_summary` / `mark_crisis_summary`），`agent.py` 新增 `SUMMARY_SYS` + MOCK 剧本（放 agent 才能按 system 原文分派），`app.py` 303 → 333 行（`_maybe_compress`）；触发三条件满 5 轮 / 超 200 字 / 首次 L3。**80 passed（+11）**，contract **11/11 + 5/5 + 20/20**；AppTest 10 轮恰好压 2 次（第 5、10 轮，`calls` 含 `('summary',0.3)`），摘要 == MOCK 固定文本、任意用户原句均不出现、`summary_at_turn=10`；首次 L3 探针 `llm_calls=0`、日志 `rule_ids: ['SUMMARY_CRISIS'], action=summary_compress`、资源卡 3 张。五处口径修正：①压缩走纯文本不走 `safe_json`；②首次 L3 只写确定性标记、不调模型（断网必须可用）；③日志 action 增第 6 值 `summary_compress`（摘要不是用户轮，不污染四值）；④空历史不自压；⑤两道隐私闸门（scrub + 40 字截断；输出 8 字原句检测，命中即作废）。证据 `docs/evidence/2026-11-08-s17-summary.md`
+
+**下一步（S18）**：记忆面板可视化（只读白名单字段 + 单字段可删 + 清空），随后 S19 主题、S20 lore、S21 验收 v0.3。
 
 - ✅ **规则缺口补丁 + 复核四项收尾（2026-11-08）**：`roles.py` 只改 4 条正则（X01 否定句补"没有想过/从没想过要"、X03 补"论文/作业/报道"反向分支、H04 补"天台 + 跳下去"并负向断言排除游泳、H06 补"买/囤 + 安眠药"）；`tests/test_guardian.py` +5 条 `GAP_CASES`（D-29~D-32 + 一条护栏），先红后绿；**53 passed**，contract **11/11 + 5/5 + 20/20**。执行书同步升 **v1.2**（附录 B 四条正则 + 变更记录 + 新增附录 D-5，注明不计入分母）。四处决策的处理：①证据日期**不改名**，13 个证据文件头加"实际生成于 2026-11-08"；②规则按上一条补；③S08–S13 拆 5 个提交 + `v0.2`；④执行书 :1128 的"39 passed"旧基数不动。证据 `docs/evidence/2026-11-08-rule-gap-patch.md`
 

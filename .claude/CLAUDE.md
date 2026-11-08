@@ -139,8 +139,10 @@
 - ✅ S04（2026-11-09）：`agent.py` 121 行（`call_llm` / MOCK 三剧本 / `safe_json` / 懒加载客户端）；`tests/test_agent.py` **6 passed**（累计 15）；真实调用 `ok=True` 2769ms；证据 `docs/evidence/2026-11-09-s04-agent.md`。口径修正：本机 openai 1.109.1 的 `create()` 不接受 `max_retries`，`timeout=15` 与 `max_retries=1` 放在客户端构造上，否则会被兜底吞成 `TypeError`
 - ✅ S05（2026-11-09）：`app.py` 146 行（首屏免责声明 / 聊天区 / 侧栏 / URL 会话 id / 固定七步管线 / 三层兜底）；AppTest 连续 10 轮 **20 条消息 0 异常**，刷新同 sid、记忆面板可读；清空时旧记忆三文件真删并换新 sid；缺 Key 非 MOCK 出兜底句不露堆栈；截图 `docs/evidence/2026-11-09-s05-*.png`；证据 `docs/evidence/2026-11-09-s05-app.md`
 
-- ✅ 复审（2026-11-08，S03–S05 独立验收）：`pytest` 15 passed / `contract_check` 11+5 全绿，AppTest 10 轮 20 条 0 异常；**修 4 个代码缺陷**（记忆自愈会用坏主文件覆盖唯一好备份 / `match_lore` 漏传 sid / 缺 Key 被伪装成网络卡顿 / `degraded` 靠字符串相等判定）+ 8 处文档口径；p5-app 三个提交**尚未 push**
+- ✅ 复审（2026-11-08，S03–S05 独立验收）：`pytest` 15 passed / `contract_check` 11+5 全绿，AppTest 10 轮 20 条 0 异常；**修 4 个代码缺陷**（记忆自愈会用坏主文件覆盖唯一好备份 / `match_lore` 漏传 sid / 缺 Key 被伪装成网络卡顿 / `degraded` 靠字符串相等判定）+ 8 处文档口径；p5-app 三个提交已 push
 - ✅ 外部复核（2026-11-08，另一 agent 独立跑）：两条手工验收全过——①手写坏主文件后一轮真实对话，主文件自动修回、`.bak` SHA-256 前后一致；②改名 `.env` 后 `streamlit run app.py`，首屏红字「未配置 LLM_API_KEY」、输入框 0 个、不出现「我这边刚刚卡了一下」。复核指出的覆盖缺口已补：`test_corrupt_main_recovers_from_backup` 增加「修好后再写一轮，`.bak` 仍是合法旧版」断言（**不新增用例，仍 9 条**），并用变异测试验证（删修复语句 → `1 failed`，恢复 → `15 passed`）。记录在 `docs/evidence/2026-11-09-s03-memory.md` §8
+- ✅ S06 部署准备（2026-11-08）：`app.py:24-45` 增加 `_bridge_secrets()`——线上没有 `.env`，密钥只放在 `st.secrets` 里，必须在 `import memory/agent`（`app.py:42-45`）之前把它铺进环境变量；否则 `DATA_DIR` 已被模块级常量定死，`_config_gate` 会误报缺 Key。实测：把 `.env` 改名、只留 `.streamlit/secrets.toml`（`MOCK_LLM="1"`）时 AppTest 一轮正常回复、0 错误 0 异常，`MOCK_LLM` 确由桥接注入。`main` 已 fast-forward 到 `05ad9c3` 并 push（`4ffdae7..05ad9c3`，S03–S05 全部代码进主干）；部署时**分支选 `main`、主文件路径填 `app.py`**
+- ⚠️ 线上容器磁盘是临时的：Streamlit Cloud 休眠 / 重部署会清空 `data/memory/*.json`，即「记忆」只在本次运行内保留。演示时同一会话连续操作；报告与 PPT 不许写「长期记忆持久化」
 
 **下一步（S06）**：按 `step/S06-deploy-v01.md` 部署 Streamlit Cloud 并打 `v0.1`，出口：公网链接可开 + 手机热点能开。
 

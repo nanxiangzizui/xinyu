@@ -22,7 +22,8 @@ data/logs/*.jsonl
 !.gitkeep
 
 # ---- 证据与产物 ----
-evidence/
+# 只忽略根目录的临时证据夹；docs/evidence/ 是正式证据，必须入库
+/evidence/
 screenshots/
 *.mp4
 *.webm

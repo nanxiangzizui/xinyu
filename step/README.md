@@ -178,7 +178,7 @@ dec  = {"role": "listener|guide|crisis", "reason": "default|crisis_shortcircuit|
 | 步 | 状态 | 完成日期 | 备注 |
 |---|---|---|---|
 | S01 | ⬜ | | |
-| S02 | ⬜ | | |
+| S02 | ✅ | 2026-11-09 | 7 个 .py 空壳；contract 11/11 + 5/5；改签名/改常量已验红（`docs/evidence/2026-11-09-s02-contract.md`） |
 | S03 | ⬜ | | |
 | S04 | ⬜ | | |
 | S05 | ⬜ | | |

@@ -1,7 +1,7 @@
 # 心屿 MindIsle · 项目状态与规则
 
 > **本文件是唯一状态源。** 其他文件（SKILL.md、README、.mdc）只讲方法、格式和摘要，状态一律以这里为准。
-> 最后更新：2026-11-09（计划期结束，代码期尚未开始）
+> 最后更新：2026-11-09（S02 骨架与契约校验完成，进入 S03）
 
 ## 0. 三分钟了解
 
@@ -45,7 +45,7 @@
 | 步 | 周期 | 状态 | 对应执行书 | 主要组件 | 出口（可验证） |
 |---|---|---|---|---|---|
 | S0 | 计划期 | ✅ | 全文 | 五份计划书整合 + 执行书 v1.0 | 执行书冻结，范围不再讨论 |
-| S1 | W1 | ⬜ | §7.1 | 仓库 / 骨架 / `agent.py` / `memory.py` 空壳 / `app.py` / 部署 | 在线可打开 + 10 轮不崩 + `contract_check` 11/11 + `v0.1` |
+| S1 | W1 | 🟨 | §7.1 | 仓库 / 骨架 / `agent.py` / `memory.py` 空壳 / `app.py` / 部署 | 在线可打开 + 10 轮不崩 + `contract_check` 11/11 + `v0.1` |
 | S2 | W2 | ⬜ | §7.2、§4.3、§4.6、§4.7 | 五套人设 + 状态机 + `guardian_pre_check` | C-09 切 crisis；C-01 不误触；日志无原文 + `v0.2` |
 | S3 | W3 | ⬜ | §7.3、§4.8、§5 | `guardian_post_check` + 聚合 + 记忆面板 + 主题 + lorebook | 重写日志 `rewrite=1`；风险地板不掉；3 主题不错位 + `v0.3` |
 | S4 | W4 | ⬜ | §7.4、§8 | 97 条测试（考核 48）+ 冻结 + 录屏 | 指标达标 + 测试表齐 + `v1.0` |
@@ -114,8 +114,9 @@
 - ✅ Python 版本已定：本机装 **Python 3.11.9**（winget，`py -3.11` 可用；裸 `python` 仍是 Anaconda 3.14，一律不用）；`.venv` 已建好并**验证可重建**（删掉重装成功），实测 `streamlit 1.67.0 / openai 1.109.1 / python-dotenv 1.2.4 / pytest 9.2.0`
 - ✅ 本机风险已排除：`streamlit hello` 在中文+空格路径下 HTTP 200，不必搬项目目录；`requirements.txt` 中文注释曾触发 GBK `UnicodeDecodeError`，已改纯 ASCII 并立为红线
 - ⬜ 6 人是否都会 Python 未确认（W1 周一环境检查后回填）
+- ✅ S02（2026-11-09）：`roles.py` + 五模块空壳 + `contract_check.py` 落地，跑出 **11/11 + 5/5**；故意改签名、改 `TIMEOUT` 两条人工验红；证据 `docs/evidence/2026-11-09-s02-contract.md`
 
-**下一步（W1 周一）**：`.venv` 已就绪 → 按 `step/S02-contract-first.md` 建六文件空壳 + `contract_check.py` 跑出 11/11 → 再按 S03/S04 填 memory / agent。
+**下一步（S03）**：按 `step/S03-memory-core.md` 实现 `memory.py` 全量（9 字段白名单 / 原子写 / 损坏恢复）+ `tests/test_memory.py` 9 条；再按 S04 填 `agent.py`。
 
 ## 5. 关键约束与红线
 

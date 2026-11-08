@@ -1,12 +1,119 @@
 """agent.py — LLM 调用与系统提示词拼接（MOCK / 超时 / 失败兜底）。"""
 from __future__ import annotations
 
+import hashlib
+import json
+import logging
+import os
+import time
+
+from dotenv import load_dotenv
+from openai import OpenAI
+
 from roles import TIMEOUT
+
+# 入口只加载一次；默认不覆盖已有环境变量，否则 monkeypatch 与环境隔离都会失效。
+load_dotenv()
+
+logger = logging.getLogger(__name__)
+
+FENCE = chr(96) * 3          # 三个反引号，避免源码里出现 markdown 围栏
+MOCK_LINES = (
+    "我在。你慢慢说，不着急。",
+    "听起来这件事让你挺不好受的，我先陪你待一会儿。",
+    "嗯，我听到了。你现在最想说的是哪一部分？",
+)
+
+_client: OpenAI | None = None
+
+
+def _is_mock() -> bool:
+    """每次现读环境变量：模块级读会让 monkeypatch 失效。"""
+    return os.getenv("MOCK_LLM", "0").strip() == "1"
+
+
+def _ms(t0: float) -> int:
+    return int((time.time() - t0) * 1000)
+
+
+def _last_user(messages: list[dict]) -> str:
+    """取最后一条用户消息；MOCK 的三条剧本都只看它。"""
+    last = next((m.get("content") or "" for m in reversed(messages)
+                 if m.get("role") == "user"), "")
+    return last if isinstance(last, str) else ""
+
+
+def _mock(messages: list[dict]) -> dict:
+    """确定性 MOCK：同一输入永远同一输出。
+
+    用 md5 而不是内置 hash——后者受 PYTHONHASHSEED 影响，跨进程每次不同，
+    测试与演示都断言不了。
+    """
+    last = _last_user(messages)
+    if "__fail__" in last:
+        return {"text": "", "ok": False, "error": "MockFailure", "latency_ms": 0}
+    if "__unsafe__" in last:
+        return {"text": "这没什么大不了的，你应该振作起来。",
+                "ok": True, "error": "", "latency_ms": 0}
+    idx = int(hashlib.md5(last.encode("utf-8")).hexdigest(), 16) % len(MOCK_LINES)
+    return {"text": MOCK_LINES[idx], "ok": True, "error": "", "latency_ms": 0}
+
+
+def _get_client() -> OpenAI:
+    """懒加载：import 时不建客户端，没 Key 的机器也能跑 contract_check。
+
+    timeout / max_retries 放在客户端：openai 1.x 的 create() 不接受 max_retries，
+    传进去会抛 TypeError 并被 except 吞成 ok=False，真实调用看起来像网络故障。
+    """
+    global _client
+    if _client is None:
+        _client = OpenAI(
+            api_key=os.getenv("LLM_API_KEY"),
+            base_url=os.getenv("LLM_BASE_URL", "https://api.deepseek.com"),
+            timeout=TIMEOUT,
+            max_retries=1,
+        )
+    return _client
 
 
 def call_llm(messages: list[dict], temperature: float = 0.7) -> dict:
-    """S02 空壳：返回固定文本。S04 实现真实调用与 MOCK。"""
-    return {"text": "（骨架）我在这里。", "ok": False, "error": "not_implemented", "latency_ms": 0}
+    """调模型。永不抛异常（缺 Key 除外，那是配置错误，必须当场报）。"""
+    if _is_mock():
+        return _mock(messages)
+    if not os.getenv("LLM_API_KEY"):
+        # 在 try 之前抛：只兜边界异常，不吞配置错误，也不悄悄转 MOCK。
+        raise RuntimeError("缺少 LLM_API_KEY：请在 .env 填 Key，或设 MOCK_LLM=1 离线运行")
+
+    t0 = time.time()
+    try:
+        resp = _get_client().chat.completions.create(
+            model=os.getenv("LLM_MODEL", "deepseek-chat"),
+            messages=messages,
+            temperature=temperature,
+        )
+        text = (resp.choices[0].message.content or "").strip()
+        logger.debug("agent.call ok text_len=%s latency_ms=%s", len(text), _ms(t0))
+        return {"text": text, "ok": bool(text), "error": "", "latency_ms": _ms(t0)}
+    except Exception as exc:                      # 边界 1/4：LLM 调用
+        # error 只放类型名：异常内容可能带 Key 或用户原文，落日志就等于泄露。
+        logger.warning("agent.call_failed error=%s latency_ms=%s",
+                       type(exc).__name__, _ms(t0))
+        return {"text": "", "ok": False, "error": type(exc).__name__, "latency_ms": _ms(t0)}
+
+
+def safe_json(text: str) -> dict | None:
+    """剥掉 markdown 围栏后解析。失败返回 None（调用方按中风险处理，不许当无事）。"""
+    if not text:
+        return None
+    s = text.strip()
+    if s.startswith(FENCE):
+        s = s.split(FENCE)[1]
+        s = s[4:] if s.lower().startswith("json") else s
+    try:
+        data = json.loads(s)
+    except (json.JSONDecodeError, ValueError):
+        return None
+    return data if isinstance(data, dict) else None
 
 
 def build_system_prompt(persona_id: str, memory: dict, lore: list[str]) -> str:

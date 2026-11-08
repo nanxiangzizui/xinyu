@@ -188,12 +188,12 @@ dec  = {"role": "listener|guide|crisis", "reason": "default|crisis_shortcircuit|
 | S05 | ✅ | 2026-11-09 | `app.py` 146 行；七步管线；AppTest 10 轮 20 条消息 0 异常；刷新同 sid / 清空真删 / 缺 Key 兜底（`docs/evidence/2026-11-09-s05-app.md`） |
 | S06 | ✅ | 2026-11-09 | 线上 https://xinyu-mindisle.streamlit.app（分支 `main`、入口 `app.py`、Py3.11、Secrets 4 键）；双轮对话正常、刷新同 sid；tag `v0.1` 已推（`docs/evidence/2026-11-09-s06-deploy.md`）。**手机流量验证待补** |
 | S07 | ✅ | 2026-11-09 | `roles.py` 104 行 5 卡 × 9 字段 + `SAFETY_BLOCK` 五卡同文；`build_system_prompt` 四段拼装（480–532 字）；5 条测试通过（累计 20）；真实模型五卡语气可区分（`docs/evidence/2026-11-09-s07-personas.md`）。**盲读 3 人待做**（答卷 `docs/evidence/2026-11-09-s07-blind-sheet.md`） |
-| S08 | ⬜ | | |
-| S09 | ⬜ | | |
-| S10 | ⬜ | | |
-| S11 | ⬜ | | |
-| S12 | ⬜ | | |
-| S13 | ⬜ | | |
+| S08 | ✅ | 2026-11-09 | `RULES` 20 条（X5/H10/W5，每条 11 字段）；`validate_rules()` 接入 `contract_check`，输出 `20/20 rules OK`；坏正则 / 非法 level / 顺序错 3 类故障注入均被捕获（`docs/evidence/2026-11-09-s08-rules.md`） |
+| S09 | ✅ | 2026-11-09 | `guardian.py` 小句级豁免（切句 + 硬词保护 + 只升不降）；D-21~D-25 + 跨句回归 **6 passed**（累计 26）；contract 11/11 + 20/20；变异验证确认回归用例可抓“整段豁免”（`docs/evidence/2026-11-09-s09-exemption.md`） |
+| S10 | ✅ | 2026-11-09 | `resources.py` 三档资源 + `guardian.CRISIS_REPLY`（125 字，含 12356 / 0571-87713518）；`app.py` 在 `call_llm` 与 `update_memory` 之前短路 L3；D-01~D-10 **16 passed**（累计 36）；AppTest（MOCK 关）L3 `llm_calls=0`。**危机文案盲读 1 人待做**（`docs/evidence/2026-11-09-s10-shortcircuit.md`） |
+| S11 | ✅ | 2026-11-09 | `coordinator.py` 46 行（`coordinator_decide` + `enforce_cooldown`，reason 六枚举，无 streamlit 依赖）；`app.py` 接冷却并在侧栏显示角色 / 等级 / 原因；`tests/test_flow.py` **4 passed**（累计 40）；AppTest：C-01 listener / C-05 guide / C-09 crisis，危机后永不回 guide（`docs/evidence/2026-11-09-s11-state-machine.md`） |
+| S12 | ✅ | 2026-11-09 | `logger.py` 36 行（9 字段白名单 / sha256 短哈希 / 写失败只 WARN）；`app.py` L3 与正常轮各写一行（`short_circuit` / `generate`，**S13 起因执行书改为四值**）；侧栏中文标签 + 轮次 + 记忆摘要 + 清除记忆；`tests/test_log.py` **2 passed**（累计 42）；AppTest 3 轮日志无原文、清空真删、只读 LOG_DIR 不影响对话（`docs/evidence/2026-11-09-s12-logging-sidebar.md`） |
+| S13 | ✅ | 2026-11-09 | `guardian.py` 141 → 169 行：`DIAG` / `RESOURCE` / `SAFE_FALLBACK` / `_violations` + 五步链（复查 → 重写 1 次 → 复检 → 记账 → 兜底）；`app.py` 只发 `fixed or 原文`，`action` 改执行书四值；**48 passed**（+6）；AppTest 塞入“你这是抑郁症”→ 界面与日志均无原文、`action=template_fallback`（`docs/evidence/2026-11-09-s13-postcheck.md`）。**`rewriter` 仍为 None，LLM 重写留 S14** |
 | S14 | ⬜ | | |
 | S15 | ⬜ | | |
 | S16 | ⬜ | | |

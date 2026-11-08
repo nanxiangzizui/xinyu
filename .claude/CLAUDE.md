@@ -1,7 +1,7 @@
 # 心屿 MindIsle · 项目状态与规则
 
 > **本文件是唯一状态源。** 其他文件（SKILL.md、README、.mdc）只讲方法、格式和摘要，状态一律以这里为准。
-> 最后更新：2026-11-08（S06 上线 v0.1 + S07 五张人设卡完成，进入 S08 RULES）
+> 最后更新：2026-11-08（规则补丁收尾：53 passed，执行书升 v1.2，待提交 v0.2 tag；W2 两项盲读仍待做）
 
 ## 0. 三分钟了解
 
@@ -146,7 +146,23 @@
 - ✅ **S06 上线（2026-11-08）**：https://xinyu-mindisle.streamlit.app —— 分支 `main`、主文件 `app.py`、Python 3.11、Secrets 填 4 个键；实测打开正常、连聊 2 轮有回复、刷新后会话 id 不变（聊天记录刷新即空，是 S05 §5.2 的既定口径，不是 bug）；**tag `v0.1` 已推**。证据 `docs/evidence/2026-11-09-s06-deploy.md`。未完成：手机流量打开一次（待用户确认）
 - ✅ **S07 人设卡（2026-11-08）**：`roles.py` 104 行（`SAFETY_BLOCK` + `BOUNDARIES_COMMON` + 5 张卡 × 9 字段）；`agent.build_system_prompt` 四段拼装（安全区→风格区→事实区→PHI），空事实整段省略，实测 480–532 字；`tests/test_roles.py` **5 passed（累计 20）**，contract 11/11。踩坑：第一版示例写"不要照抄"，模型仍逐字复读，改成"示例只示范语气与句长，不要复用其中任何句子"才生效。证据 `docs/evidence/2026-11-09-s07-personas.md`。未完成：**盲读 3 人**（答卷 `docs/evidence/2026-11-09-s07-blind-sheet.md`）
 
-**下一步（S08）**：按 `step/S08-rules-table.md` 写 `RULES` 20 条（H01–H10 / W01–W05 / X01–X05），并让 `guardian_pre_check` 返回四个字段。
+- ✅ **S08 规则表（2026-11-08）**：`roles.py` 104 → 267 行，`RULES` 20 条（X5 / H10 / W5，每条 11 字段）+ `COMPILED` 容错预编译 + `validate_rules()`；`contract_check.py` 增加规则校验，实测 **11/11 + 5/5 + 20/20 rules OK**，`pytest` **20 passed**。亲手做 3 类故障注入并全部捕获：坏正则（H01 → `(((`）、非法等级（W01 → `L9`）、顺序错（X01/H01 组互换）。一次性交叉核对：D-01~D-15 逐条命中预期规则、D-20/26 无命中、C-09 命中 H01。证据 `docs/evidence/2026-11-09-s08-rules.md`。口径修正：步骤示例用 `sorted()` 查 X→H→W 会因字母序 `H<W<X` 误报，已改显式 `GROUP_ORDER`；`COMPILED` 坏正则不再让 import 崩溃，改由 `validate_rules()` 报具体规则
+
+- ✅ **S09 豁免引擎（2026-11-08）**：`guardian.py` 115 → 130 行（`split_clauses` / `_hits` / `_covered` / `_dedup` / `_raise` / `_exemption` / `_judge_clause` / `scan`）；`guardian_pre_check` 接真实判定，`guardian_post_check` 仍是 S13 空壳。**小句级**：`累死了，不想活了` = L3（`['X04','H01']`）、`笑死了，我今天想死` = L3、`不想死但是不想活` = L3；D-21~D-25 逐条符合（L1×4 / L2×1），`pytest` **26 passed**（新增 6），contract **11/11 + 5/5 + 20/20**。变异验证：只去掉切句仍 6 passed（硬词保护独立兜住），切句+硬词保护同时去掉才让回归用例变红。口径修正：`exempted` 增加 `all_hits_exempt`，W01/W04 这类不抬等级的非豁免命中也算“命中过”，避免误标 exempted。证据 `docs/evidence/2026-11-09-s09-exemption.md`
+
+- ✅ **S10 短路与资源卡（2026-11-08）**：`resources.py` 27 行三档资源（L3×3 / L2×2 / L1 空）+ `guardian.CRISIS_REPLY`（125 字，含 12356 / 0571-87713518 / 110 / 120，无追问、无诊断词）；`app.py` 在 `call_llm` 与 `update_memory` **之前**短路 L3，直接返回 `role="crisis"`；`tests/test_guardian.py` 追加 D-01~D-10，**16 passed（累计 36）**，contract **11/11 + 5/5 + 20/20**。AppTest（`MOCK_LLM=0` + dummy 端点）：L3 `llm_calls=0`、3 张资源卡秒出、消息正常 append；普通句才调 LLM、历史重绘不出卡。口径修正：短路放 `handle()` 内而不是 `main()+st.stop()`（后者会连侧栏一起停掉）；资源顺序按 `step/S10` §5.2（12356 → 110/120 → 校心理中心），不采用 SKILL 旧顺序。未完成：**危机文案盲读 1 人**。证据 `docs/evidence/2026-11-09-s10-shortcircuit.md`
+
+- ✅ **S11 三角色状态机（2026-11-08）**：`coordinator.py` 46 行（`ADVICE_WORDS` / `REASONS` 六枚举 / `coordinator_decide` / `enforce_cooldown`）；判定顺序 L3 → 历史危机 → 求助词 → 默认；`app.py` 接冷却（L3 置 `cooldown=COOLDOWN`、`ever_crisis=True`，先置再减 1），侧栏显示角色 / 等级 / 原因；`tests/test_flow.py` **4 passed（累计 40）**，contract **11/11 + 5/5 + 20/20**。AppTest（MOCK）：C-01 listener、C-05 guide、C-09 crisis，危机后两轮求助仍是 listener/after_crisis，清空后新会话可回 guide；0 异常。口径修正：S11 §6 期望 39 passed 是旧基数（S10 实际 36，+4 = 40）；侧栏提前接真实值（W2 要求“角色与原因可见”，S12 再补日志与中文标签）。证据 `docs/evidence/2026-11-09-s11-state-machine.md`
+
+- ✅ **S12 结构化日志 + 侧栏（2026-11-08）**：`logger.py` 36 行（9 字段白名单 / `session_hash` sha256 前 12 位 / 写失败只 WARN）；`app.py` 在 L3 短路与正常轮各写一行（`action=short_circuit|generate`），侧栏显示 `session_hash` 前 6 位 + 轮次 + 中文等级 / 角色 / 原因 + 记忆摘要 + “清除我的记忆”；清空时旧 `.json/.bak` 真删并换新 sid、轮次归零。`tests/test_log.py` **2 passed（累计 42）**，contract **11/11 + 5/5 + 20/20**。AppTest：3 轮日志 9 字段齐全、原文泄漏 0 条；`LOG_DIR` 指向文件时仅一行 WARN、对话照常。口径修正：S12 §6 期望 41 passed 是旧基数（S11 实际 40，+2 = 42）；步骤测试的 `setenv` 在 import 后不生效，改用 `monkeypatch.setattr(logger, "LOG_DIR", …)`（与 `memory.DATA_DIR` 同口径）；L3 也写日志（SKILL 要求 L3 日志可查）。证据 `docs/evidence/2026-11-09-s12-logging-sidebar.md`。**未完成：`v0.2` tag 与提交（工作区仍压着 S08–S12 改动，待队长确认提交拆分）**
+
+- ✅ **S13 post_check 五步链（2026-11-08）**：`guardian.py` 141 → 169 行（`DIAG` / `RESOURCE` / `SAFE_FALLBACK` / `_violations` / 五步链），`SAFE_FALLBACK["crisis"]` 直连 `CRISIS_REPLY`（兜底与短路同文）；`app.py` 只发 `fixed or 原文`，`action` 由固定 `generate` 改为执行书四值 `pass / rewrite / template_fallback`（`short_circuit` 不变）。**48 passed（+6）**，contract **11/11 + 5/5 + 20/20**；AppTest 把 `agent.call_llm` 换成固定返回「你这是抑郁症，建议服药」→ 界面只有兜底句、日志 `action=template_fallback`、原文泄漏 0；干净回复原样通过不误伤。口径修正：`rewrite` 只记“真的重写过”，本步 `rewriter=None`，所以被拦是 `rewrite=0 + template_fallback=True`，W3 的“`rewrite=1`”留给 S14 截图；`pass=False` 不是“不发”。证据 `docs/evidence/2026-11-09-s13-postcheck.md`
+
+**下一步（S14）**：按 `step/S14-*.md` 把 `rewriter` 接上 LLM 复核与重写，失败按“不通过”处理。
+
+- ✅ **规则缺口补丁 + 复核四项收尾（2026-11-08）**：`roles.py` 只改 4 条正则（X01 否定句补"没有想过/从没想过要"、X03 补"论文/作业/报道"反向分支、H04 补"天台 + 跳下去"并负向断言排除游泳、H06 补"买/囤 + 安眠药"）；`tests/test_guardian.py` +5 条 `GAP_CASES`（D-29~D-32 + 一条护栏），先红后绿；**53 passed**，contract **11/11 + 5/5 + 20/20**。执行书同步升 **v1.2**（附录 B 四条正则 + 变更记录 + 新增附录 D-5，注明不计入分母）。四处决策的处理：①证据日期**不改名**，13 个证据文件头加"实际生成于 2026-11-08"；②规则按上一条补；③S08–S13 拆 5 个提交 + `v0.2`；④执行书 :1128 的"39 passed"旧基数不动。证据 `docs/evidence/2026-11-08-rule-gap-patch.md`
+
+- ✅ **README 修正（2026-11-08）**：状态行从"S02 完成"改到 S13 实际口径；删掉 agent.py 的"流式"（没实现）；guardian / contract_check / tests 的描述改为真实内容；theme.py / metrics.py 标注"S19 / S24 计划"（当时**尚不存在**）。
 
 ## 5. 关键约束与红线
 

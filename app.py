@@ -8,6 +8,7 @@ from __future__ import annotations
 import logging
 import os
 import re
+import time
 import uuid
 
 import streamlit as st
@@ -40,9 +41,12 @@ def _bridge_secrets() -> None:
 _bridge_secrets()
 
 from agent import build_system_prompt, call_llm              # noqa: E402  顺序要紧
-from coordinator import coordinator_decide                   # noqa: E402
-from guardian import guardian_post_check, guardian_pre_check  # noqa: E402
+from coordinator import coordinator_decide, enforce_cooldown  # noqa: E402
+from guardian import CRISIS_REPLY, guardian_post_check, guardian_pre_check  # noqa: E402
+from logger import log_turn, session_hash                     # noqa: E402
 from memory import clear_memory, match_lore, read_memory, update_memory  # noqa: E402
+from resources import pick_resources                          # noqa: E402
+from roles import COOLDOWN                                    # noqa: E402
 
 logger = logging.getLogger(__name__)
 
@@ -53,6 +57,16 @@ DISCLAIMER = (
 FALLBACK_LINE = "我这边刚刚卡了一下，但我在。你可以再说一句吗？"
 NET_HINT = "网络不稳定：刚才那条是兜底回复"
 DEFAULT_PERSONA = "sister_heart"
+
+# 侧栏只给人看的标签：不直接露出 L1/L2/L3 与枚举码，演示时不刺激用户，也不外泄规则细节。
+LEVEL_LABELS = {"L1": "平稳", "L2": "留意", "L3": "危机"}
+ROLE_LABELS = {"listener": "倾听者", "guide": "引导者", "crisis": "危机支持"}
+REASON_LABELS = {"default": "自然延续", "user_ask_advice": "你明确问了办法",
+                 "crisis_shortcircuit": "需要优先保证安全",
+                 "crisis_cooldown": "危机后的缓冲期",
+                 "after_crisis": "本会话出现过危机",
+                 "sustained_negative": "持续低落"}
+TONE_LABELS = {"neutral": "自然", "gentle": "温柔", "light": "轻松", "direct": "直接"}
 
 # 与 memory.py 的 ID_RE 同口径：会话 id 来自 URL，必须先校验再交给磁盘层。
 SID_RE = re.compile(r"^[a-zA-Z0-9_-]{1,32}$")
@@ -70,11 +84,46 @@ def get_session_id() -> str:
     return sid
 
 
+def _mark_crisis() -> None:
+    """L3 当轮置冷却与永久标记。
+
+    先置 COOLDOWN 再减 1：L3 这一轮本身已短路，不计入余量，
+    之后还有 COOLDOWN-1 轮处于冷却（S11 §5.4）。
+    """
+    st.session_state["cooldown"] = COOLDOWN
+    st.session_state["ever_crisis"] = True
+    st.session_state["cooldown"] = max(0, st.session_state["cooldown"] - 1)
+
+
+def _log_turn(sid: str, level: str, role: str, rule_ids: list[str],
+              action: str, rewrite: int, t0: float) -> None:
+    """结构化日志唯一出口：只过白名单，不带任何原文。"""
+    log_turn(session_hash=session_hash(sid),
+             turn=st.session_state.get("turn", 0),
+             level=level, role=role, rule_ids=rule_ids,
+             action=action, rewrite=rewrite,
+             latency_ms=int((time.perf_counter() - t0) * 1000))
+
+
 def handle(text: str, sid: str, history: list[dict], persona_id: str) -> dict:
     """七步固定管线；异常交给 safe_handle，不在这里吞。"""
+    t0 = time.perf_counter()
     memory = read_memory(sid)                                      # 前置：读记忆
     pre = guardian_pre_check(text)                                 # 1 判危
+    if pre["level"] == "L3":
+        # [SAFE] L3 一律短路，这一轮到此为止：不调 LLM、不加载人设、不写记忆。
+        # 危机回复只能是固定模板，模型没有任何自由发挥的余地；等级也不许被后续步骤下调。
+        _mark_crisis()
+        _log_turn(sid, pre["level"], "crisis", pre["rule_ids"],
+                  "short_circuit", 0, t0)
+        return {"reply": CRISIS_REPLY, "level": "L3", "role": "crisis",
+                "reason": "crisis_shortcircuit",
+                "degraded": False, "short_circuit": True}
     dec = coordinator_decide(memory, text, pre["level"])           # 2 定角色
+    # [SAFE] 冷却/历史危机只降 guide，不碰 crisis；L3 已在上面短路，等级不会被这里下调。
+    dec = enforce_cooldown(dec, st.session_state.get("cooldown", 0),
+                           st.session_state.get("ever_crisis", False))
+    st.session_state["cooldown"] = max(0, st.session_state.get("cooldown", 0) - 1)
     lore = match_lore(text, sid)                                   # 3 找事实（sid 用于同会话限次）
     prompt = build_system_prompt(persona_id, memory, lore)         # 4 拼 prompt
     resp = call_llm([{"role": "system", "content": prompt},        # 5 生成
@@ -84,10 +133,19 @@ def handle(text: str, sid: str, history: list[dict], persona_id: str) -> dict:
     fixed = post.get("fixed_reply")
     reply = fixed or resp.get("text") or FALLBACK_LINE
     update_memory(sid, text, reply)                                # 7 记
+    # action 只能是执行书写的四值：pass / rewrite / template_fallback / short_circuit。
+    # 兜底优先于重写：两者同时为真时，这一轮真正发出去的是模板句。
+    if post.get("template_fallback"):
+        action = "template_fallback"
+    else:
+        action = "rewrite" if post.get("rewrite") else "pass"
+    _log_turn(sid, pre["level"], dec["role"], pre["rule_ids"],
+              action, post.get("rewrite", 0), t0)
     return {
         "reply": reply,
         "level": pre["level"],
         "role": dec["role"],
+        "reason": dec["reason"],
         # 只看字符串会把“模型失败、guardian 换成安全兜底”误判成正常回复（S13 起会发生）。
         "degraded": (not resp.get("ok", False)) or reply == FALLBACK_LINE,
     }
@@ -102,7 +160,7 @@ def safe_handle(text: str, sid: str, history: list[dict], persona_id: str) -> di
                        sid[:6], type(exc).__name__)
         # 判危失败时风险未知，按中风险记录；绝不按 L1 当“没事”。
         return {"reply": FALLBACK_LINE, "level": "L2", "role": "listener",
-                "degraded": True}
+                "reason": "default", "degraded": True}
 
 
 def _config_gate() -> None:
@@ -130,23 +188,41 @@ def _clear(sid: str) -> None:
         logger.warning("clear_failed session=%s error=%s", sid[:6], type(exc).__name__)
     st.session_state.messages = []
     st.session_state["degraded"] = False
+    st.session_state["turn"] = 0
+    # 清空对话 = 开新会话：冷却与“有过危机”标记必须一起归零，否则新对话永远回不到 guide。
+    st.session_state["cooldown"] = 0
+    st.session_state["ever_crisis"] = False
+    st.session_state["last_role"] = "listener"
+    st.session_state["last_level"] = "L1"
+    st.session_state["last_reason"] = "default"
     st.query_params["u"] = uuid.uuid4().hex[:12]
     st.rerun()
 
 
 def _sidebar(sid: str) -> None:
     with st.sidebar:
-        st.caption(f"会话 {sid[:6]}")
-        st.metric("当前角色", "listener")          # S12 换真实值
-        st.metric("当前风险等级", "L1")             # S12 换真实值
+        turn = st.session_state.get("turn", 0)
+        level = st.session_state.get("last_level", "L1")
+        role = st.session_state.get("last_role", "listener")
+        reason = st.session_state.get("last_reason", "default")
+        st.caption(f"会话 {session_hash(sid)[:6]} · 第 {turn} 轮")
+        st.metric("当前风险等级", LEVEL_LABELS.get(level, level))
+        st.metric("当前角色", ROLE_LABELS.get(role, role))
+        st.caption(f"切换原因：{REASON_LABELS.get(reason, reason)}")
         if os.getenv("MOCK_LLM", "0").strip() == "1":
             st.caption("离线演示模式（MOCK）")
         if st.session_state.get("degraded"):
             st.caption(NET_HINT)
-        with st.expander("它在记什么"):
-            st.json(read_memory(sid))
+        memory = read_memory(sid)
+        with st.expander("我记住了什么"):
+            st.write({
+                "偏好语气": TONE_LABELS.get(memory["preferred_tone"],
+                                            memory["preferred_tone"]),
+                "情绪标签": memory["emotion_tags"] or ["—"],
+                "未解决的事": memory["unresolved_issues"] or ["—"],
+            })
         st.caption("只记标签与摘要，不存聊天原文；刷新后聊天记录不会恢复。")
-        if st.button("清空这次对话"):
+        if st.button("清除我的记忆"):
             _clear(sid)
 
 
@@ -157,15 +233,19 @@ def main() -> None:
     _config_gate()
 
     sid = get_session_id()
-    if "messages" not in st.session_state:
-        st.session_state.messages = []
-    if "persona_id" not in st.session_state:
-        st.session_state.persona_id = DEFAULT_PERSONA
+    st.session_state.setdefault("messages", [])
+    st.session_state.setdefault("persona_id", DEFAULT_PERSONA)
+    # 冷却与“有过危机”只活在本会话：刷新即重置，这是 S11 的既定口径，不是 bug。
+    for key, default in (("cooldown", 0), ("ever_crisis", False),
+                         ("last_role", "listener"), ("last_level", "L1"),
+                         ("last_reason", "default"), ("turn", 0)):
+        st.session_state.setdefault(key, default)
 
     _render_history(st.session_state.messages)
 
     text = (st.chat_input("说说你现在想说的…") or "").strip()
     if text:
+        st.session_state["turn"] += 1
         st.session_state.messages.append({"role": "user", "content": text})
         with st.chat_message("user"):
             st.markdown(text)
@@ -174,8 +254,15 @@ def main() -> None:
                 result = safe_handle(text, sid, st.session_state.messages,
                                      st.session_state.persona_id)
             st.markdown(result["reply"])
+            # 资源卡只在这一轮渲染一次；刷新后从 messages 重绘，不会重复出卡。
+            if result.get("short_circuit"):
+                for card in pick_resources(result["level"], []):
+                    st.info(f"{card['title']}：{card['detail']}")
         st.session_state.messages.append({"role": "assistant", "content": result["reply"]})
         st.session_state["degraded"] = result["degraded"]
+        st.session_state["last_role"] = result["role"]
+        st.session_state["last_level"] = result["level"]
+        st.session_state["last_reason"] = result.get("reason", "default")
 
     _sidebar(sid)
 

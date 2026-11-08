@@ -1,0 +1,13 @@
+[1] persona=sister_heart input=挂科了怎么办
+    lore=['多数课程有补考或重修，具体看教务通知。']
+    ok=True ms=1501 len=34 mentions_fact=False
+    reply=挂科这事堵在心里，挺沉的吧。先别急着想办法，你现在最难受的是哪一块？
+[2] persona=rational_mentor input=挂科了怎么办
+    lore=['多数课程有补考或重修，具体看教务通知。']
+    ok=True ms=711 len=20 mentions_fact=True
+    reply=先查教务通知，看这门课有没有补考或重修。
+[3] persona=rational_mentor input=宿舍跟室友闹矛盾了
+    lore=['宿舍矛盾可找辅导员或宿管协调。']
+    ok=True ms=1240 len=23 mentions_fact=False
+    reply=矛盾具体卡在哪件事上？说清楚一点，我们拆开看。
+mock=False

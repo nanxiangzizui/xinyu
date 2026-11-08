@@ -1,7 +1,7 @@
 # 心屿 MindIsle · 项目状态与规则
 
 > **本文件是唯一状态源。** 其他文件（SKILL.md、README、.mdc）只讲方法、格式和摘要，状态一律以这里为准。
-> 最后更新：2026-11-08（S19 三套主题：89 passed；W2 两项盲读仍待做）
+> 最后更新：2026-11-08（S20 迷你 Lorebook：94 passed；W2 两项盲读仍待做）
 
 ## 0. 三分钟了解
 
@@ -10,7 +10,7 @@
 - 形态：Streamlit 单页聊天 + 侧栏状态 + 记忆面板 + 资源卡
 - 交付：4 周出一个可演示版本 + 3 天材料期，6 人小队
 - 尺度：课程实践作业。安全设计要真实，疗效一句不吹
-- 规模：13 个 py 文件（约 1800 行）+ 89 条测试（考核要求 48，目标 97）
+- 规模：13 个 py 文件（约 1800 行）+ 94 条测试（考核要求 48，目标 97）
 - 交什么：**.docx 文档**（含 AI 使用附录）+ **17 页 PPT** + **300 秒录屏视频** + 现场三幕。代码不单独计分
 
 ## 1. 权威顺序（冲突时从上往下）
@@ -99,7 +99,7 @@
 ├─ roles.py          5 人设卡 + RULES 20 条
 ├─ coordinator.py    三角色状态机 + 会话聚合 + 只升不降
 ├─ guardian.py       规则 → 豁免 → 分级 → 复核 → 短路 / 重写 / 复检
-├─ memory.py         白名单读写 + 摘要节流 + 备份 + 清空 + match_lore
+├─ memory.py         白名单读写 + 摘要节流 + 备份 + 清空 + 迷你 Lorebook
 ├─ resources.py      情绪 → 资源卡（纯函数）
 ├─ logger.py         结构化日志（9 字段，不写原文）
 ├─ panel.py          记忆面板（8 字段只读 / 两字段编辑 / 导出 / 二次确认清空）
@@ -108,7 +108,7 @@
 ├─ metrics.py        四指标脚本（只读测试集）
 ├─ utils.py          按需创建：第 2 次重复才搬进来（≤100 行）
 ├─ tests/            test_memory / test_agent / test_roles / test_log /
-│                    test_guardian / test_flow / test_theme（目前 89 条，目标 97 条）
+│                    test_guardian / test_flow / test_theme（目前 94 条，目标 97 条）
 ├─ step/             26 个分步执行文件 + README（怎么做看这里）
 ├─ data/memory/      memory.json（不进仓库）
 ├─ data/logs/        YYYY-MM-DD.jsonl（不进仓库）
@@ -171,7 +171,9 @@
 
 - ✅ **S19 三套主题（2026-11-08）**：新建 `theme.py` 63 行（`THEMES` 三套五变量 / `theme_css` / `inject_theme` / `theme_picker` / `contrast_ratio`），`app.py` 314 → 318 行（`main` 顶部注入，侧栏第一项是配色单选），`roles.py` 275 行（删掉 S02 的 `THEMES` 占位，避免双份漂移）；只改颜色与 16px 圆角，不动布局/字号/安全链路。`tests/test_theme.py` 7 条，**89 passed**，contract **11/11 + 5/5 + 20/20**。三套正文对比度 11.32–11.85（text/bg）、10.22–10.88（text/surface），均 ≥4.5；真实页面截图三张（`2026-11-08-theme-*.png`），抹茶主题下 `.stApp` computed bg 实测变绿。口径修正：步骤 §6 的 "62 passed" 是旧基数；侧栏与输入框保持 `.streamlit` 基色是遵守"选择器不许过宽"，不是漏改。证据 `docs/evidence/2026-11-08-s19-themes.md`
 
-**下一步（S20）**：迷你 Lorebook（`match_lore` 已有骨架，按 `step/S20-lorebook.md` 核口径），随后 S21 验收 v0.3。
+- ✅ **S20 迷你 Lorebook（2026-11-08）**：`memory.py` 300 → 338 行：`LORE_SEED` 8 条校园常识（每条 ≤25 字，只写"去哪问/一般怎么安排"）+ `match_lore(user_text, session_id="")`（子串命中 / ≤2 条 / 单轮 ≤100 字 / 同会话最多 3 次）+ `clear_memory` 清计数；`agent.py` 205 → 207 行：`_facts_block` 从 4 字段扩到 5，新增 `coping_preferences`（"对方愿意试的办法"，面板改完立刻进 prompt），lore 行加限定语"相关时用一句话带出，不要整段念"。**94 passed（+5）**，contract **11/11 + 5/5 + 20/20**。AppTest 4 轮：前 3 轮 `has_lore=True`、第 4 轮自动停。真实调用对照：知心姐姐 0/3 带出事实（`sentence_len=25` + "先确认情绪再开口"），理性导师 1/3（"先查教务通知，看这门课有没有补考或重修。"20 字）。五处口径修正：①step 写"65 passed"是旧基数；②探针的假回复必须按 system prompt 分派，否则会多出复核/重写调用；③"只由 update_memory 写"落地为"静态种子表 + 偏好走 facts 区"两条路（不往 memory.json 塞 lore，避免破坏 8 字段白名单）；④加限定语后仍 0/3，限制在人设不在措辞，**没为 demo 改人设**；⑤`_lore_used` 是唯一模块级可变状态，只影响"少说两句"。证据 `docs/evidence/2026-11-08-s20-lorebook.md`
+
+**下一步（S21）**：集成验收 + 打 `v0.3` —— 逐项复核 W3 五个出口（重写日志 `rewrite=1` / 风险地板不掉 / 面板单字段可清空 / 3 主题不错位 / lore 可命中），跑全量门禁与 10 轮连续对话，然后 commit + `git tag -a v0.3`。
 
 - ✅ **规则缺口补丁 + 复核四项收尾（2026-11-08）**：`roles.py` 只改 4 条正则（X01 否定句补"没有想过/从没想过要"、X03 补"论文/作业/报道"反向分支、H04 补"天台 + 跳下去"并负向断言排除游泳、H06 补"买/囤 + 安眠药"）；`tests/test_guardian.py` +5 条 `GAP_CASES`（D-29~D-32 + 一条护栏），先红后绿；**53 passed**，contract **11/11 + 5/5 + 20/20**。执行书同步升 **v1.2**（附录 B 四条正则 + 变更记录 + 新增附录 D-5，注明不计入分母）。四处决策的处理：①证据日期**不改名**，13 个证据文件头加"实际生成于 2026-11-08"；②规则按上一条补；③S08–S13 拆 5 个提交 + `v0.2`；④执行书 :1128 的"39 passed"旧基数不动。证据 `docs/evidence/2026-11-08-rule-gap-patch.md`
 

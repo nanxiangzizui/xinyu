@@ -50,6 +50,12 @@ def test_prompt_within_budget():
         assert "不承诺保密" in prompt
 
 
+def test_coping_preferences_reach_prompt():
+    """6. 用户在面板里改的安抚偏好要进事实区（不能只吃常量种子）。"""
+    prompt = build_system_prompt("sister_heart", {"coping_preferences": ["听歌", "散步"]}, [])
+    assert "对方愿意试的办法：听歌、散步" in prompt
+
+
 def test_empty_facts_section_omitted():
     """4. 空 memory + 空 lore 时不出现空标题；有内容时才出现。"""
     assert "[你记得的事]" not in build_system_prompt("sister_heart", {}, [])

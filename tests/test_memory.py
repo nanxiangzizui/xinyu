@@ -236,3 +236,37 @@ def test_clear_then_read_returns_defaults(mem):
     assert got["emotion_tags"] == [] and got["unresolved_issues"] == []
     assert got["coping_preferences"] == []
     assert got["rolling_summary"] == "" and got["summary_at_turn"] == 0
+
+# --- S20 迷你 Lorebook：命中受控、注入受控、种子受审 ---
+
+def test_lore_hits_exam_keyword(mem):
+    """23. "快考试了" 命中补考/重修常识，且只给一条。"""
+    got = mem.match_lore("快考试了，有点慌", "u_lore_1")
+    assert len(got) == 1 and "补考或重修" in got[0]
+
+
+def test_lore_stops_after_three_injections(mem):
+    """24. 同一会话注入 3 次后不再注入（防复读）；换会话重新计数。"""
+    sid = "u_lore_2"
+    for _ in range(mem.LORE_USED_MAX):
+        assert mem.match_lore("快考试了", sid)
+    assert mem.match_lore("快考试了", sid) == []
+    assert mem.match_lore("快考试了", "u_lore_2b")          # 换会话重新计数
+    assert mem.match_lore("快考试了", "")                  # 不传 sid 退化为不计次
+
+
+def test_lore_caps_items_and_length(mem):
+    """25. 一句命中 5 条种子：最多 2 条、单轮总长 ≤100 字。"""
+    got = mem.match_lore("考试 保研 宿舍 心理咨询 失眠", "u_lore_3")
+    assert len(got) <= mem.LORE_MAX_ITEMS
+    assert sum(len(t) for t in got) <= mem.LORE_INJECT_MAX
+
+
+def test_lore_seed_shape(mem):
+    """26. 8 条种子、每条 ≤25 字、不出现诊断/政策结论类表述。"""
+    assert len(mem.LORE_SEED) == 8
+    for entry in mem.LORE_SEED:
+        assert entry["keys"] and entry["text"]
+        assert len(entry["text"]) <= 25, entry["text"]
+        assert all(w not in entry["text"] for w in ("抑郁症", "焦虑症", "一定", "必须"))
+

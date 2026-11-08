@@ -200,7 +200,7 @@ dec  = {"role": "listener|guide|crisis", "reason": "default|crisis_shortcircuit|
 | S17 | ✅ | 2026-11-09 | `memory.py` 295 行：`should_compress` / `recent_lines` / `compress_summary` / `mark_crisis_summary`（满 5 轮 / 超 200 字 / 首次 L3）；`app.py` 接 `_maybe_compress`，L3 只写标记不调模型；**80 passed**（+11）；AppTest 10 轮压 2 次、摘要无原句、首危机 `llm_calls=0`（`docs/evidence/2026-11-08-s17-summary.md`） |
 | S18 | ✅ | 2026-11-09 | `panel.py` 118 行（8 字段中文标签 / 仅两字段可编辑 / 展示与导出过 `scrub` / 导出白名单 / 二次确认清空）；`app.py` 333 → 314 行；测试 **82 passed**（+2）；探针：8 标签 / 改偏好落盘 / 导出无原句 / 确认后清除（`docs/evidence/2026-11-08-s18-panel.md`） |
 | S19 | ✅ | 2026-11-09 | `theme.py` 63 行（三套五变量 / `theme_css` / `inject_theme` / `theme_picker` / `contrast_ratio`）；`app.py` 314 → 318 行；`roles.py` 删 `THEMES` 占位；测试 **89 passed**（+7）；三套正文对比度 11.32–11.85，截图 `docs/evidence/2026-11-08-theme-*.png`（`docs/evidence/2026-11-08-s19-themes.md`） |
-| S20 | ⬜ | | |
+| S20 | ✅ | 2026-11-09 | `memory.py` 338 行：`LORE_SEED` 8 条（每条 ≤25 字）+ `match_lore`（子串 / ≤2 条 / ≤100 字 / 同会话 3 次）；`agent.py` `_facts_block` 增 `coping_preferences`，lore 行加“一句话带出”限定；测试 **94 passed**（+5）；AppTest 4 轮第 4 轮不再注入；真实调用：知心姐姐 0/3、理性导师 1/3 带出事实（`docs/evidence/2026-11-08-s20-lorebook.md`） |
 | S21 | ⬜ | | |
 | S22 | ⬜ | | |
 | S23 | ⬜ | | |

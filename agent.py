@@ -157,9 +157,10 @@ def _flat(value) -> str:
 
 
 def _facts_block(memory: dict, lore: list[str]) -> str:
-    """只放 4 个字段 + lore；不放历史对话，否则 prompt 会越聊越长。"""
+    """只放 5 个字段 + lore；不放历史对话，否则 prompt 会越聊越长。"""
     rows: list[str] = []
     for key, label in (("preferred_tone", "对方喜欢的语气"),
+                       ("coping_preferences", "对方愿意试的办法"),
                        ("emotion_tags", "最近的情绪"),
                        ("unresolved_issues", "还没放下的事"),
                        ("rolling_summary", "之前的谈话概况")):
@@ -169,7 +170,8 @@ def _facts_block(memory: dict, lore: list[str]) -> str:
     for item in lore or []:
         text = _flat(item)
         if text:
-            rows.append(f"背景：{text}")
+            # [SAFE] lore 只是背景常识：允许自然带一句，但禁止整段复述成公告。
+            rows.append(f"背景（和对方的话相关时用一句话带出，不要整段念）：{text}")
     return "\n".join(rows)
 
 

@@ -60,6 +60,24 @@ TAG_RULES = {"考试": "学业", "考研": "升学", "室友": "人际", "分手
              "父母": "家庭", "失眠": "睡眠", "实习": "求职", "钱": "经济"}
 ASK_CUES = ("怎么办", "该不该", "不知道", "给点建议")
 
+# S20 迷你 Lorebook：只写"能去哪问"，不写结论、不写政策解读、不写医疗建议。
+# 每条 ≤25 字；子串匹配、最多 2 条、单轮总长 ≤100 字、同会话最多注入 3 次。
+LORE_SEED = [
+    {"keys": ["考试", "期末", "挂科"], "text": "多数课程有补考或重修，具体看教务通知。"},
+    {"keys": ["保研", "绩点", "排名"], "text": "保研看综合成绩，各院系细则不同。"},
+    {"keys": ["宿舍", "室友", "矛盾"], "text": "宿舍矛盾可找辅导员或宿管协调。"},
+    {"keys": ["心理咨询", "心理中心", "预约"], "text": "校心理中心一般免费，需提前预约。"},
+    {"keys": ["失眠", "睡不着", "熬夜"], "text": "长期失眠建议先看校医院，别自行用药。"},
+    {"keys": ["实习", "找工作", "简历"], "text": "学校就业中心提供简历修改与模拟面试。"},
+    {"keys": ["家里", "父母", "经济"], "text": "经济困难可申请助学金或临时困难补助。"},
+    {"keys": ["转专业", "休学", "退学"], "text": "学籍变动须走教务流程，先问辅导员。"},
+]
+LORE_INJECT_MAX = 100
+LORE_USED_MAX = 3
+LORE_MAX_ITEMS = 2
+# [SAFE] 模块级可变状态的唯一例外：只影响"少说两句"，不影响风险等级与发不发。
+_lore_used: dict[str, int] = {}
+
 
 def _now() -> str:
     """统一 UTC，显示时再由界面转本地时区。"""
@@ -292,9 +310,29 @@ def clear_memory(session_id: str) -> bool:
         if cand.exists():
             cand.unlink(missing_ok=True)
             removed = True
+    _lore_used.pop(session_id, None)      # 清空记忆也要让"最多 3 次"的计数归零
     return removed
 
 
 def match_lore(user_text: str, session_id: str = "") -> list[str]:
-    """S20 实现迷你 Lorebook；本步保持不命中。"""
-    return []
+    """命中关键词返回 1–2 条校园常识；同会话最多注入 3 次，防复读。"""
+    if not user_text:
+        return []
+    sid = session_id if isinstance(session_id, str) else ""
+    if sid and _lore_used.get(sid, 0) >= LORE_USED_MAX:
+        return []
+    out: list[str] = []
+    total = 0
+    for entry in LORE_SEED:
+        if not any(k in user_text for k in entry["keys"]):
+            continue
+        text = entry["text"]
+        if total + len(text) > LORE_INJECT_MAX:
+            break
+        out.append(text)
+        total += len(text)
+        if len(out) >= LORE_MAX_ITEMS:
+            break
+    if out and sid:
+        _lore_used[sid] = _lore_used.get(sid, 0) + 1
+    return out

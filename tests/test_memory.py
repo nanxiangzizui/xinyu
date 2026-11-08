@@ -62,11 +62,15 @@ def test_atomic_write_keeps_valid_json_and_backup(mem):
 
 
 def test_corrupt_main_recovers_from_backup(mem):
-    """5. 正文坏、备份好：读回备份内容，不抛异常。"""
+    """5. 正文坏、备份好：读回备份内容，并把主文件修好（好备份不许被污染）。"""
     mem.write_memory("u4", {"preferred_tone": "gentle"})
     mem.write_memory("u4", {"preferred_tone": "direct"})
     (mem.DATA_DIR / "u4.json").write_text("{broken", encoding="utf-8")
     assert mem.read_memory("u4")["preferred_tone"] == "gentle"
+    repaired = json.loads((mem.DATA_DIR / "u4.json").read_text(encoding="utf-8"))
+    assert repaired["preferred_tone"] == "gentle"          # 主文件已自愈
+    bak = json.loads((mem.DATA_DIR / "u4.json.bak").read_text(encoding="utf-8"))
+    assert bak["preferred_tone"] == "gentle"               # 好备份没被坏文件覆盖
 
 
 def test_both_corrupt_resets_and_rewrites(mem):

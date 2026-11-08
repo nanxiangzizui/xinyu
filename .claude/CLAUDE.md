@@ -139,6 +139,8 @@
 - ✅ S04（2026-11-09）：`agent.py` 121 行（`call_llm` / MOCK 三剧本 / `safe_json` / 懒加载客户端）；`tests/test_agent.py` **6 passed**（累计 15）；真实调用 `ok=True` 2769ms；证据 `docs/evidence/2026-11-09-s04-agent.md`。口径修正：本机 openai 1.109.1 的 `create()` 不接受 `max_retries`，`timeout=15` 与 `max_retries=1` 放在客户端构造上，否则会被兜底吞成 `TypeError`
 - ✅ S05（2026-11-09）：`app.py` 146 行（首屏免责声明 / 聊天区 / 侧栏 / URL 会话 id / 固定七步管线 / 三层兜底）；AppTest 连续 10 轮 **20 条消息 0 异常**，刷新同 sid、记忆面板可读；清空时旧记忆三文件真删并换新 sid；缺 Key 非 MOCK 出兜底句不露堆栈；截图 `docs/evidence/2026-11-09-s05-*.png`；证据 `docs/evidence/2026-11-09-s05-app.md`
 
+- ✅ 复审（2026-11-08，S03–S05 独立验收）：`pytest` 15 passed / `contract_check` 11+5 全绿，AppTest 10 轮 20 条 0 异常；**修 4 个代码缺陷**（记忆自愈会用坏主文件覆盖唯一好备份 / `match_lore` 漏传 sid / 缺 Key 被伪装成网络卡顿 / `degraded` 靠字符串相等判定）+ 8 处文档口径；p5-app 两个提交**尚未 push**
+
 **下一步（S06）**：按 `step/S06-deploy-v01.md` 部署 Streamlit Cloud 并打 `v0.1`，出口：公网链接可开 + 手机热点能开。
 
 ## 5. 关键约束与红线
@@ -187,6 +189,9 @@
 
 - `memory.json` 只允许 8 个白名单字段（`preferred_tone / current_role / role_switch_reason / emotion_tags / unresolved_issues / coping_preferences / rolling_summary / last_updated`）+ `summary_at_turn`。
 - 绝不写入：人名、地名、学校、病历、药物、身份证、原文摘录。`update_memory` 里必须有 `scrub()` 兜底。
+- **`scrub()` 只覆盖手机 / 证件 / 邮箱 / 链接 / 学校名，认不出人名**（实测 `杭州电子科技大学的张三` → `[学校]张三`）。
+  人名的防线不是正则，而是“只写标签与摘要、不写原句”；`rolling_summary` 由模型生成，prompt 里已明令禁止人名（S17）。
+  验收时说“自动脱敏覆盖五类”，不许说“绝不会出现人名”。
 - 日志只记 `session_hash` 与字段，**不记用户原文**。
 - 用户点"清空"必须真删（含备份），并给出确认提示。
 

@@ -181,7 +181,7 @@ dec  = {"role": "listener|guide|crisis", "reason": "default|crisis_shortcircuit|
 
 | 步 | 状态 | 完成日期 | 备注 |
 |---|---|---|---|
-| S01 | ⬜ | | |
+| S01 | ✅ | 2026-11-09 | Python 3.11.9（`py -3.11`）+ .venv 删重建通过；`streamlit hello` 在中文+空格路径 HTTP 200；`requirements.txt` 改纯 ASCII；无独立证据文件，记录见 `.claude/CLAUDE.md` §4 |
 | S02 | ✅ | 2026-11-09 | 7 个 .py 空壳；contract 11/11 + 5/5；改签名/改常量已验红（`docs/evidence/2026-11-09-s02-contract.md`） |
 | S03 | ✅ | 2026-11-09 | `memory.py` 219 行；9 条测试全过；坏文件自愈与“落盘无原句”已手工验证（`docs/evidence/2026-11-09-s03-memory.md`） |
 | S04 | ✅ | 2026-11-09 | `agent.py` 121 行；6 条测试全过；MOCK 跨进程确定；真实调用 ok=True（`docs/evidence/2026-11-09-s04-agent.md`） |

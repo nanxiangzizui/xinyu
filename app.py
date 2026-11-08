@@ -50,7 +50,7 @@ def handle(text: str, sid: str, history: list[dict], persona_id: str) -> dict:
     memory = read_memory(sid)                                      # 前置：读记忆
     pre = guardian_pre_check(text)                                 # 1 判危
     dec = coordinator_decide(memory, text, pre["level"])           # 2 定角色
-    lore = match_lore(text)                                        # 3 找事实
+    lore = match_lore(text, sid)                                   # 3 找事实（sid 用于同会话限次）
     prompt = build_system_prompt(persona_id, memory, lore)         # 4 拼 prompt
     resp = call_llm([{"role": "system", "content": prompt},        # 5 生成
                      *history[-10:]])
@@ -63,7 +63,8 @@ def handle(text: str, sid: str, history: list[dict], persona_id: str) -> dict:
         "reply": reply,
         "level": pre["level"],
         "role": dec["role"],
-        "degraded": reply == FALLBACK_LINE,
+        # 只看字符串会把“模型失败、guardian 换成安全兜底”误判成正常回复（S13 起会发生）。
+        "degraded": (not resp.get("ok", False)) or reply == FALLBACK_LINE,
     }
 
 
@@ -77,6 +78,17 @@ def safe_handle(text: str, sid: str, history: list[dict], persona_id: str) -> di
         # 判危失败时风险未知，按中风险记录；绝不按 L1 当“没事”。
         return {"reply": FALLBACK_LINE, "level": "L2", "role": "listener",
                 "degraded": True}
+
+
+def _config_gate() -> None:
+    """配置错误当场报，不许伪装成"网络不稳定"。
+    缺 Key 时每一轮都会走到 safe_handle，用户看到的却是一句"卡了一下"，排查会跑错方向。
+    """
+    if os.getenv("MOCK_LLM", "0").strip() == "1":
+        return
+    if not os.getenv("LLM_API_KEY"):
+        st.error("未配置 LLM_API_KEY：请在 .env 填入 Key，或设 MOCK_LLM=1 离线运行。")
+        st.stop()
 
 
 def _render_history(messages: list[dict]) -> None:
@@ -117,6 +129,7 @@ def main() -> None:
     st.set_page_config(page_title="心屿 · 情绪陪伴", layout="centered")
     st.title("心屿")
     st.caption(DISCLAIMER)                         # 第一屏常驻，不折叠
+    _config_gate()
 
     sid = get_session_id()
     if "messages" not in st.session_state:

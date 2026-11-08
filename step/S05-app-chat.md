@@ -66,13 +66,20 @@ st.caption("这是一个情绪陪伴工具，不是心理咨询，也不能替�
 ### 5.2 session_id 跨刷新
 
 ```python
+SID_RE = re.compile(r"^[a-zA-Z0-9_-]{1,32}$")      # 与 memory.ID_RE 同口径
+
 def get_session_id() -> str:
-    sid = st.query_params.get("u")
-    if not sid:
-        sid = uuid.uuid4().hex[:12]
-        st.query_params["u"] = sid
+    raw = st.query_params.get("u")
+    raw = raw[0] if isinstance(raw, list) and raw else raw
+    if isinstance(raw, str) and SID_RE.fullmatch(raw):
+        return raw
+    sid = uuid.uuid4().hex[:12]
+    st.query_params["u"] = sid
     return sid
 ```
+
+**必须校验**：sid 会被拼成文件名（`data/memory/<sid>.json`），`?u=../../x` 就是路径穿越。
+校验失败不要报错，直接发新 id 即可——用户看不出差别，磁盘层也不会拿到脏字符串。
 
 这是 W1 验收"刷新后记忆还在"的**唯一**正确做法：`session_state` 刷新即空。
 
@@ -163,9 +170,9 @@ S12 会把三个 `metric` 换成真实值，S18 会把 `st.json` 换成可操作
 | 4 | `Ctrl+R` 刷新 | 会话 id 不变，页脚能读到同一份 memory |
 | 5 | 点"清空这次对话" | 历史清空，`data/memory/<sid>.json` 消失 |
 | 6 | 断网 + MOCK | 仍能回复 |
-| 7 | 删掉 `.env` 里的 Key 且非 MOCK | 界面一句人话，不是堆栈 |
+| 7 | 删掉 `.env` 里的 Key 且非 MOCK | 首屏红字提示缺 Key 并停止，**不渲染输入框** |
 
-第 7 条最容易漏：它验证"配置错误也要体面"。
+第 7 条最容易漏：配置错误要**当场说清楚**，不许伪装成“网络卡了一下”——那会把排查引到网络上去。`app._config_gate()` 就干这一件事。
 
 ## 7 回滚
 

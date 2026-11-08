@@ -113,7 +113,8 @@ def _filter(data: object) -> dict:
                                     TEXT_MAX["role_switch_reason"]) or "default",
         "rolling_summary": _text(src.get("rolling_summary"), TEXT_MAX["rolling_summary"]),
         "last_updated": _text(src.get("last_updated"), 40) or _now(),
-        "summary_at_turn": turn if isinstance(turn, int) and turn >= 0 else 0,
+        "summary_at_turn": turn if isinstance(turn, int) and not isinstance(turn, bool)
+        and turn >= 0 else 0,
     }
     for key in ("emotion_tags", "unresolved_issues", "coping_preferences"):
         out[key] = _items(src.get(key), ITEM_CAPS[key], ITEM_MAX[key])
@@ -143,7 +144,12 @@ def read_memory(session_id: str) -> dict:
             data = json.loads(cand.read_text(encoding="utf-8"))
             if not isinstance(data, dict):
                 raise ValueError("memory root is not a dict")
-            return _filter(data)
+            clean = _filter(data)
+            if cand != path:
+                # 从 .bak 救回来就立刻修好主文件：否则下一次 write_memory 会把坏文件
+                # 复制成 .bak，好备份被覆盖，等于只剩一次机会。这里不碰 .bak。
+                _replace(path, json.dumps(clean, ensure_ascii=False, indent=2))
+            return clean
         except (ValueError, OSError) as exc:
             logger.warning("memory read failed %s: %s", cand.name, exc.__class__.__name__)
     fresh = _filter({})

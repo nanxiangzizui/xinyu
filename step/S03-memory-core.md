@@ -144,8 +144,13 @@ ASK_CUES = ("怎么办", "该不该", "不知道", "给点建议")
 | 语气线索词 | `preferred_tone` | 命中即改，取第一个 |
 | 话题词 | `emotion_tags` | 映射成**标签**，最多 5 个，去重 |
 | 求助句式 | `unresolved_issues` | 追加对应**标签**（不是原句），最多 5 个 |
-| 每轮 | `summary_at_turn + 1`、`last_updated` | 必做 |
+| 每轮 | `last_updated` | 必做 |
+| 摘要压缩成功后 | `summary_at_turn = 当前轮次` | 由 S17 写，**S03 不自增** |
 | 其他 | 不动 | 宁可不记，也不乱记 |
+
+> **2026-11-08 修正**：`summary_at_turn` 是“上次压缩所在轮次”，不是“聊了几轮”。
+> 若每轮 +1，S17 的 `turn - summary_at_turn >= SUMMARY_EVERY` 永远是 0，摘要节流永远不触发。
+> 以执行书 §5.1.1 为准，S03 只保留字段；理由见 `docs/evidence/2026-11-09-s03-memory.md` §6.7。
 
 **这一条红线必须写在函数 docstring 里**：`update_memory 只写标签与枚举，绝不写用户原句。`
 原因见 `CLAUDE.md` §5.5：一旦存原文，等于把聊天记录落盘，出了事没法解释。
@@ -232,6 +237,6 @@ Remove-Item data\memory\*.json, data\memory\*.bak -ErrorAction SilentlyContinue
 ## 10 回执
 
 ```text
-S03 完成：memory.py 210 行 / 9 passed / 坏文件自愈已验证 / 落盘无原文
+S03 完成：memory.py 219 行 / 9 passed / 坏文件自愈已验证 / 落盘无原文
 下一步：S04 agent.py
 ```

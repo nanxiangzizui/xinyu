@@ -13,12 +13,37 @@ import uuid
 import streamlit as st
 from dotenv import load_dotenv
 
-from agent import build_system_prompt, call_llm
-from coordinator import coordinator_decide
-from guardian import guardian_post_check, guardian_pre_check
-from memory import clear_memory, match_lore, read_memory, update_memory
-
 load_dotenv()
+
+# 线上（Streamlit Cloud）没有 .env，密钥只放在平台的 Secrets 里，读法是 `st.secrets`，
+# 不是环境变量。必须在 import memory / agent 之前铺好：memory.py 的 DATA_DIR 是模块级常量。
+_SECRET_KEYS = ("LLM_API_KEY", "LLM_BASE_URL", "LLM_MODEL", "MOCK_LLM",
+                "DATA_DIR", "LOG_DIR")
+
+
+def _bridge_secrets() -> None:
+    """把 st.secrets 铺进环境变量，只补空缺，不覆盖已有值。
+
+    [SAFE] 这里必须兜底：本地没有 secrets.toml 时读取会抛异常，
+    线上没配 Secrets 时也不该崩——真正缺 Key 由 _config_gate 报，不在这里报两遍。
+    """
+    try:
+        items = st.secrets.to_dict() if hasattr(st.secrets, "to_dict") else dict(st.secrets)
+    except Exception:                       # 边界：没有 Secrets 是正常情况
+        return
+    for key in _SECRET_KEYS:
+        val = items.get(key)
+        if val is not None and not os.getenv(key):
+            os.environ[key] = str(val)
+
+
+_bridge_secrets()
+
+from agent import build_system_prompt, call_llm              # noqa: E402  顺序要紧
+from coordinator import coordinator_decide                   # noqa: E402
+from guardian import guardian_post_check, guardian_pre_check  # noqa: E402
+from memory import clear_memory, match_lore, read_memory, update_memory  # noqa: E402
+
 logger = logging.getLogger(__name__)
 
 DISCLAIMER = (

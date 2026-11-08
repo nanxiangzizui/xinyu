@@ -197,3 +197,42 @@ def test_mock_summary_has_no_user_text(mem, monkeypatch):
     monkeypatch.setenv("MOCK_LLM", "1")
     got = mem.compress_summary("", ["我室友最近不理我，我很难受"])
     assert got and "室友" not in got and "难受" not in got
+
+
+# --- S18 记忆面板：展示脱敏 + 清空后无残留 ---
+
+def test_panel_view_scrubs_contact_markers(mem):
+    """21. 面板展示前过 scrub：手机 / 邮箱不出现在侧栏数据里，8 个中文标签顺序不变。"""
+    import panel
+
+    view = panel.panel_view({
+        "preferred_tone": "gentle",
+        "emotion_tags": ["a@b.com"],
+        "rolling_summary": "他电话 13800138000",
+    })
+    text = json.dumps(view, ensure_ascii=False)
+    assert "13800138000" not in text and "a@b.com" not in text
+    assert "[手机]" in text and "[邮箱]" in text
+    assert list(view) == list(panel.LABELS.values())
+    assert "last_updated" not in text                      # 面板不展示时间戳
+    assert panel.export_payload({"rolling_summary": "电话 13800138000"})[
+        "rolling_summary"] == "电话 [手机]"                 # 导出同样过 scrub
+
+
+def test_clear_then_read_returns_defaults(mem):
+    """22. 清空后读回：8 字段全默认、无残留（面板不会显示旧内容）。"""
+    mem.write_memory("u10", {
+        "preferred_tone": "direct",
+        "emotion_tags": ["学业"],
+        "rolling_summary": "考试压力",
+        "summary_at_turn": 3,
+    })
+    assert mem.clear_memory("u10") is True
+    got = mem.read_memory("u10")
+    assert set(got) == mem.ALLOWED
+    assert got["preferred_tone"] == "neutral"
+    assert got["current_role"] == "listener"
+    assert got["role_switch_reason"] == "default"
+    assert got["emotion_tags"] == [] and got["unresolved_issues"] == []
+    assert got["coping_preferences"] == []
+    assert got["rolling_summary"] == "" and got["summary_at_turn"] == 0

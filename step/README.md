@@ -198,7 +198,7 @@ dec  = {"role": "listener|guide|crisis", "reason": "default|crisis_shortcircuit|
 | S15 | ✅ | 2026-11-09 | `guardian.py` 252 → 273 行：`SAYING` 7 词（不进 `RULES`）+ `preachy` 快路径（只重写、不升级、不兜底）；`app.py` 日志在命中时追加 `rule_ids: ["SAYING"]`；五卡 `taboos` 本就在 S07 注入风格区，本步补 `test_taboos_are_distinct_and_injected`；**64 passed**（+4）；AppTest 说教句 → `action=rewrite, rewrite=1`、无 review 调用，干净句 `action=pass`；证据 `docs/evidence/2026-11-08-s15-saying-taboos.md` |
 | S16 | ✅ | 2026-11-09 | `coordinator.py` 89 行：`risk_floor` / `aggregate_level`（窗口 5、3 次 L2 升 L3、L3 只留 L2 地板）；`app.py` 接 `session_state["levels"]` + `action=aggregate_escalate`；**69 passed**（+5）；AppTest 3 次“没意思”→ 第 3 轮 crisis 卡、随后回 L2 不短路（`docs/evidence/2026-11-08-s16-window-floor.md`） |
 | S17 | ✅ | 2026-11-09 | `memory.py` 295 行：`should_compress` / `recent_lines` / `compress_summary` / `mark_crisis_summary`（满 5 轮 / 超 200 字 / 首次 L3）；`app.py` 接 `_maybe_compress`，L3 只写标记不调模型；**80 passed**（+11）；AppTest 10 轮压 2 次、摘要无原句、首危机 `llm_calls=0`（`docs/evidence/2026-11-08-s17-summary.md`） |
-| S18 | ⬜ | | |
+| S18 | ✅ | 2026-11-09 | `panel.py` 118 行（8 字段中文标签 / 仅两字段可编辑 / 展示与导出过 `scrub` / 导出白名单 / 二次确认清空）；`app.py` 333 → 314 行；测试 **82 passed**（+2）；探针：8 标签 / 改偏好落盘 / 导出无原句 / 确认后清除（`docs/evidence/2026-11-08-s18-panel.md`） |
 | S19 | ⬜ | | |
 | S20 | ⬜ | | |
 | S21 | ⬜ | | |

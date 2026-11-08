@@ -88,6 +88,11 @@ def _scrub(text: str) -> str:
     return text[:SUMMARY_MAX]
 
 
+def scrub(text: str) -> str:
+    """对外脱敏入口（面板展示 / 导出用）：覆盖五类标识 + 200 字截断。"""
+    return _scrub(text if isinstance(text, str) else "")
+
+
 def _text(value: object, limit: int) -> str:
     if not isinstance(value, str):
         return ""

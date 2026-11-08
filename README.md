@@ -9,8 +9,8 @@
 
 | | |
 |---|---|
-| 计划 | ✅ 执行书已冻结（文件内版本 v1.1）|
-| 代码 | 🟨 S1 完成、S2 主体落地（`v0.2` 已打）、S13–S17 完成：`pytest` **80 passed**，`contract_check` **11/11 + 5/5 + 20/20**；S2 还剩人设/危机文案盲读 |
+| 计划 | ✅ 执行书已冻结（文件内版本 v1.2）|
+| 代码 | 🟨 S1 完成、S2 主体落地（`v0.2` 已打）、S13–S18 完成：`pytest` **82 passed**，`contract_check` **11/11 + 5/5 + 20/20**；S2 还剩人设/危机文案盲读 |
 | 交付 | 4 周出可演示版本 + 3 天材料期，6 人小队 |
 | 赛事 | 杭州电子科技大学第二届 AIGC 应用创新大赛 · **赛题一（AI 辅助开发·创意产品原型）** |
 
@@ -73,20 +73,21 @@ pytest -q
 心屿/
 ├─ 心屿MindIsle_工程执行书_v1.0.md   ← 唯一执行依据
 ├─ README.md                          ← 本文件
-├─ app.py            Streamlit 页面：聊天 / 侧栏 / 免责声明 / 资源卡 / 记忆面板
-├─ agent.py          call_llm / build_system_prompt / safe_json / 重试 / MOCK 三剧本
+├─ app.py            Streamlit 页面：聊天 / 侧栏 / 免责声明 / 资源卡
+├─ agent.py          call_llm / build_system_prompt / safe_json / 重试 / MOCK 剧本（生成 / 摘要 / 复核 / 重写）
 ├─ roles.py          5 套人设卡 + 3 套主题 + RULES 20 条（唯一来源）
 ├─ coordinator.py    三角色状态机 + 会话聚合 + 只升不降
 ├─ guardian.py       规则扫描 → 豁免 → 分级 → 复核 → 重写 / 复检 / 安全兜底（短路在 app.py）
-├─ memory.py         白名单读写 + 备份 + 坏文件自愈 + 一键清空 + match_lore（200 字摘要 S17 接）
+├─ memory.py         白名单读写 + 摘要节流 + 脱敏 + 备份 + 坏文件自愈 + 一键清空 + match_lore
 ├─ resources.py      情绪标签 → 资源卡
 ├─ logger.py         结构化日志（9 字段，不写用户原文）
+├─ panel.py          记忆面板：8 字段只读 / 两字段编辑 / 导出 / 二次确认清空
 ├─ theme.py          三套配色 sakura / matcha / sunset（S19 计划）
 ├─ metrics.py        四指标脚本（S24 计划，只读测试集）
 ├─ contract_check.py 11 个签名 + 5 个常量 + 20 条规则校验
 ├─ step/             S01–S26 分步执行手册（怎么做看这里）
-├─ tests/            test_guardian(34) / test_memory(9) / test_agent(6) / test_roles(5)
-│                    test_flow(4) / test_log(2) —— 合计 48（考核口径）
+├─ tests/            test_guardian(38) / test_memory(22) / test_agent(6) / test_roles(5)
+│                    test_flow(9) / test_log(2) —— 合计 82（考核要求 48）
 ├─ data/memory/      memory.json（不进仓库）
 └─ docs/             项目文档、PPT、证据、比赛要求
 ```

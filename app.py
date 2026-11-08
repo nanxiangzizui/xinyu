@@ -48,6 +48,7 @@ from logger import log_turn, session_hash                     # noqa: E402
 from memory import (clear_memory, compress_summary, mark_crisis_summary,  # noqa: E402
                     match_lore, read_memory, recent_lines, should_compress,
                     update_memory, write_memory)
+from panel import LEVEL_LABELS, REASON_LABELS, ROLE_LABELS, render_panel  # noqa: E402
 from resources import pick_resources                          # noqa: E402
 from roles import COOLDOWN, N_WINDOW                          # noqa: E402
 
@@ -60,16 +61,6 @@ DISCLAIMER = (
 FALLBACK_LINE = "我这边刚刚卡了一下，但我在。你可以再说一句吗？"
 NET_HINT = "网络不稳定：刚才那条是兜底回复"
 DEFAULT_PERSONA = "sister_heart"
-
-# 侧栏只给人看的标签：不直接露出 L1/L2/L3 与枚举码，演示时不刺激用户，也不外泄规则细节。
-LEVEL_LABELS = {"L1": "平稳", "L2": "留意", "L3": "危机"}
-ROLE_LABELS = {"listener": "倾听者", "guide": "引导者", "crisis": "危机支持"}
-REASON_LABELS = {"default": "自然延续", "user_ask_advice": "你明确问了办法",
-                 "crisis_shortcircuit": "需要优先保证安全",
-                 "crisis_cooldown": "危机后的缓冲期",
-                 "after_crisis": "本会话出现过危机",
-                 "sustained_negative": "持续低落"}
-TONE_LABELS = {"neutral": "自然", "gentle": "温柔", "light": "轻松", "direct": "直接"}
 
 # 与 memory.py 的 ID_RE 同口径：会话 id 来自 URL，必须先校验再交给磁盘层。
 SID_RE = re.compile(r"^[a-zA-Z0-9_-]{1,32}$")
@@ -274,17 +265,7 @@ def _sidebar(sid: str) -> None:
             st.caption("离线演示模式（MOCK）")
         if st.session_state.get("degraded"):
             st.caption(NET_HINT)
-        memory = read_memory(sid)
-        with st.expander("我记住了什么"):
-            st.write({
-                "偏好语气": TONE_LABELS.get(memory["preferred_tone"],
-                                            memory["preferred_tone"]),
-                "情绪标签": memory["emotion_tags"] or ["—"],
-                "未解决的事": memory["unresolved_issues"] or ["—"],
-            })
-        st.caption("只记标签与摘要，不存聊天原文；刷新后聊天记录不会恢复。")
-        if st.button("清除我的记忆"):
-            _clear(sid)
+        render_panel(sid, _clear)
 
 
 def main() -> None:

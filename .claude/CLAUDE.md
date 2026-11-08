@@ -1,7 +1,7 @@
 # 心屿 MindIsle · 项目状态与规则
 
 > **本文件是唯一状态源。** 其他文件（SKILL.md、README、.mdc）只讲方法、格式和摘要，状态一律以这里为准。
-> 最后更新：2026-11-08（S17 摘要节流：80 passed；W2 两项盲读仍待做）
+> 最后更新：2026-11-08（S18 记忆面板：82 passed；W2 两项盲读仍待做）
 
 ## 0. 三分钟了解
 
@@ -10,7 +10,7 @@
 - 形态：Streamlit 单页聊天 + 侧栏状态 + 记忆面板 + 资源卡
 - 交付：4 周出一个可演示版本 + 3 天材料期，6 人小队
 - 尺度：课程实践作业。安全设计要真实，疗效一句不吹
-- 规模：11 个 py 文件（约 1200 行）+ 97 条测试（考核口径 48）
+- 规模：12 个 py 文件（约 1700 行）+ 82 条测试（考核要求 48，目标 97）
 - 交什么：**.docx 文档**（含 AI 使用附录）+ **17 页 PPT** + **300 秒录屏视频** + 现场三幕。代码不单独计分
 
 ## 1. 权威顺序（冲突时从上往下）
@@ -48,7 +48,7 @@
 | S0 | 计划期 | ✅ | 全文 | 五份计划书整合 + 执行书 v1.0 | 执行书冻结，范围不再讨论 |
 | S1 | W1 | ✅ | §7.1 | 仓库 / 骨架 / `agent.py` / `memory.py` / `app.py` / 部署 | 在线可打开 + 10 轮不崩 + `contract_check` 11/11 + `v0.1` |
 | S2 | W2 | 🟨 | §7.2、§4.3、§4.6、§4.7 | 五套人设 + 状态机 + `guardian_pre_check` | C-09 切 crisis；C-01 不误触；日志无原文 + `v0.2` |
-| S3 | W3 | ⬜ | §7.3、§4.8、§5 | `guardian_post_check` + 聚合 + 记忆面板 + 主题 + lorebook | 重写日志 `rewrite=1`；风险地板不掉；3 主题不错位 + `v0.3` |
+| S3 | W3 | 🟨 | §7.3、§4.8、§5 | `guardian_post_check` + 聚合 + 记忆面板 + 主题 + lorebook | 重写日志 `rewrite=1`；风险地板不掉；3 主题不错位 + `v0.3` |
 | S4 | W4 | ⬜ | §7.4、§8 | 97 条测试（考核 48）+ 冻结 + 录屏 | 指标达标 + 测试表齐 + `v1.0` |
 | S5 | +3 天 | ⬜ | §7.5、§12 | 报告 / PPT / 彩排 / 提交清单 | 逐项打勾，三份备份 |
 
@@ -102,12 +102,13 @@
 ├─ memory.py         白名单读写 + 摘要节流 + 备份 + 清空 + match_lore
 ├─ resources.py      情绪 → 资源卡（纯函数）
 ├─ logger.py         结构化日志（9 字段，不写原文）
+├─ panel.py          记忆面板（8 字段只读 / 两字段编辑 / 导出 / 二次确认清空）
 ├─ theme.py          三套配色（sakura / matcha / sunset）
 ├─ contract_check.py 11 签名 + 5 常量 + 20 条规则校验
 ├─ metrics.py        四指标脚本（只读测试集）
 ├─ utils.py          按需创建：第 2 次重复才搬进来（≤100 行）
 ├─ tests/            test_memory / test_agent / test_roles / test_log /
-│                    test_guardian / test_flow / test_fault（共 97 条）
+│                    test_guardian / test_flow（目前 82 条，目标 97 条）
 ├─ step/             26 个分步执行文件 + README（怎么做看这里）
 ├─ data/memory/      memory.json（不进仓库）
 ├─ data/logs/        YYYY-MM-DD.jsonl（不进仓库）
@@ -120,7 +121,7 @@
 
 ## 4. 当前进度
 
-**2026-11-09**
+**2026-11-08**
 
 - ✅ 五份计划书已整合评审（`五份计划书整合评审与可行方案.md`）
 - ✅ 执行书 v1.0 冻结：3 角色 / 3 决策层 / 20 条规则 / 11 契约 / 48 测试 / 六级砍单
@@ -166,7 +167,9 @@
 
 - ✅ **S17 摘要节流（2026-11-08）**：`memory.py` 225 → 295 行（`should_compress` / `recent_lines` / `_quotes_source` / `compress_summary` / `mark_crisis_summary`），`agent.py` 新增 `SUMMARY_SYS` + MOCK 剧本（放 agent 才能按 system 原文分派），`app.py` 303 → 333 行（`_maybe_compress`）；触发三条件满 5 轮 / 超 200 字 / 首次 L3。**80 passed（+11）**，contract **11/11 + 5/5 + 20/20**；AppTest 10 轮恰好压 2 次（第 5、10 轮，`calls` 含 `('summary',0.3)`），摘要 == MOCK 固定文本、任意用户原句均不出现、`summary_at_turn=10`；首次 L3 探针 `llm_calls=0`、日志 `rule_ids: ['SUMMARY_CRISIS'], action=summary_compress`、资源卡 3 张。五处口径修正：①压缩走纯文本不走 `safe_json`；②首次 L3 只写确定性标记、不调模型（断网必须可用）；③日志 action 增第 6 值 `summary_compress`（摘要不是用户轮，不污染四值）；④空历史不自压；⑤两道隐私闸门（scrub + 40 字截断；输出 8 字原句检测，命中即作废）。证据 `docs/evidence/2026-11-08-s17-summary.md`
 
-**下一步（S18）**：记忆面板可视化（只读白名单字段 + 单字段可删 + 清空），随后 S19 主题、S20 lore、S21 验收 v0.3。
+- ✅ **S18 记忆面板（2026-11-08）**：新建 `panel.py` 118 行（标签映射 + `panel_view` / `export_payload` / `render_panel`），`app.py` 333 → 314 行（旧 expander 换 `render_panel(sid, _clear)`），`memory.py` 295 → 300 行（公开 `scrub`）；8 字段中文标签只读、仅 `preferred_tone` 与 `coping_preferences` 可改、展示与导出全过 `scrub`、导出白名单 9 键、清空二次确认。**82 passed（+2）**，contract **11/11 + 5/5 + 20/20**；探针：8 标签 / 改偏好落盘为枚举码 / 导出无原句 / 确认后清除换新 sid。六处口径修正：①`app.py` 破 350 行 → 抽 `panel.py`（11 契约不变，`on_clear` 注入避免循环导入）；②`st.write(list)` 显示成一坨 → 逐字段转人话；③步骤用中文语气值、落盘必须枚举码 → `format_func` 显示中文；④导出含 `last_updated` 但面板不展示；⑤清空后的 `session_state` 由既有 `_clear` 负责，面板 key 带 sid；⑥步骤写 "61 passed" 是旧基数。证据 `docs/evidence/2026-11-08-s18-panel.md`。**行数口径**：以 python `splitlines()` 为准（`guardian.py` 305 / `roles.py` 277 / `memory.py` 300 / `panel.py` 118，均 ≤350）；早期条目里的行数由 PowerShell 计数、偏低，只作增量参考。
+
+**下一步（S19）**：三套主题切换（`sakura / matcha / sunset`），不改布局与安全链路；随后 S20 lore、S21 验收 v0.3。
 
 - ✅ **规则缺口补丁 + 复核四项收尾（2026-11-08）**：`roles.py` 只改 4 条正则（X01 否定句补"没有想过/从没想过要"、X03 补"论文/作业/报道"反向分支、H04 补"天台 + 跳下去"并负向断言排除游泳、H06 补"买/囤 + 安眠药"）；`tests/test_guardian.py` +5 条 `GAP_CASES`（D-29~D-32 + 一条护栏），先红后绿；**53 passed**，contract **11/11 + 5/5 + 20/20**。执行书同步升 **v1.2**（附录 B 四条正则 + 变更记录 + 新增附录 D-5，注明不计入分母）。四处决策的处理：①证据日期**不改名**，13 个证据文件头加"实际生成于 2026-11-08"；②规则按上一条补；③S08–S13 拆 5 个提交 + `v0.2`；④执行书 :1128 的"39 passed"旧基数不动。证据 `docs/evidence/2026-11-08-rule-gap-patch.md`
 

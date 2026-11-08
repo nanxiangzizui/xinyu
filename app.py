@@ -139,7 +139,11 @@ def handle(text: str, sid: str, history: list[dict], persona_id: str) -> dict:
         action = "template_fallback"
     else:
         action = "rewrite" if post.get("rewrite") else "pass"
-    _log_turn(sid, pre["level"], dec["role"], pre["rule_ids"],
+    logged_ids = list(pre["rule_ids"])
+    if "preachy" in (post.get("reason") or ""):
+        # [SAFE] 执行书 §5.3.1：说教词不进 RULES，但日志要能和 H / W 组区分开。
+        logged_ids.append("SAYING")
+    _log_turn(sid, pre["level"], dec["role"], logged_ids,
               action, post.get("rewrite", 0), t0)
     return {
         "reply": reply,

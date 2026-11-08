@@ -141,6 +141,9 @@ def guardian_pre_check(user_text: str) -> dict:
 # [SAFE] 回复侧检查：诊断词、L3 缺资源、空回复。复检必须调用同一个函数，不许放水。
 DIAG = re.compile(r"(你(得|患)了|你有.{0,6}倾向|你是.{0,4}症|抑郁症|焦虑症|建议服药|吃药)", re.I)
 RESOURCE = re.compile(r"(12356|110|120|校心理中心)", re.I)
+# [SAFE] 说教词只是体验层：不进 RULES、不改等级、不进召回/误拦分母。
+# 它只做一件事——给重写加一条理由；重写不出来也允许原句发出（说教不是安全事故）。
+SAYING = re.compile(r"(你应该|你必须|别想太多|这没什么|我当年|你要坚强|振作起来)")
 
 # [SAFE] 兜底模板：crisis 直接复用 CRISIS_REPLY。
 # 兜底与短路必须同一句话，否则同一个危机在两条路径上给出两种说法，口径会漂。
@@ -160,6 +163,8 @@ def _violations(reply: str, level: str) -> list[str]:
         bad.append("diagnosis_language")
     if level == "L3" and not RESOURCE.search(reply or ""):
         bad.append("crisis_missing_resource")
+    if SAYING.search(reply or ""):
+        bad.append("preachy")
     return bad
 
 
@@ -237,6 +242,29 @@ def llm_rewrite(user_text: str, reply: str, reasons: list[str], role: str,
     return text or None
 
 
+def _blocking(bad: list[str]) -> list[str]:
+    """剔除体验层的 preachy：说教不是安全事故，不参与“能不能发出”的判定。"""
+    return [item for item in bad if item != "preachy"]
+
+
+def _rewrite_once(user_text: str, reply: str, bad: list[str], role: str,
+                  rewriter, t0: float) -> str | None:
+    """预算内重写一次：注入的 rewriter 优先，任何异常都当没写成。
+
+    重写只此一次——循环重试会把“模型反复犯规”变成“跑到超时”。
+    复核已经吃掉多少，重写就只剩多少：总预算 5 秒是硬要求，不是建议。
+    """
+    remaining = LLM_BUDGET_S - (time.monotonic() - t0)
+    if remaining <= 0:
+        return None
+    try:
+        if rewriter:
+            return rewriter(user_text, reply, bad, role)
+        return llm_rewrite(user_text, reply, bad, role, budget_s=remaining)
+    except Exception:                   # 边界：注入的 rewriter（含测试替身）
+        return None
+
+
 def guardian_post_check(user_text: str, reply: str, level: str, role: str, rewriter=None) -> dict:
     """五步：复查 → 复核 → 重写 1 次 → 复检 → 兜底。不通过就不发。
 
@@ -245,6 +273,15 @@ def guardian_post_check(user_text: str, reply: str, level: str, role: str, rewri
     """
     t0 = time.monotonic()
     bad = _violations(reply, level)
+    if bad and not _blocking(bad):
+        # [SAFE] 只有说教词：体验问题，重写一次；写不出来也允许原句发出。
+        # 这条路径不升级、不兜底、不调复核——把体验问题当安全事故会让系统变成“处处拦”。
+        fixed = _rewrite_once(user_text, reply, bad, role, rewriter, t0)
+        if fixed and not _blocking(_violations(fixed, level)):
+            return {"pass": True, "reason": "preachy", "fixed_reply": fixed,
+                    "rewrite": 1, "template_fallback": False}
+        return {"pass": True, "reason": "preachy", "fixed_reply": None,
+                "rewrite": 0, "template_fallback": False}
     if not bad:
         # [SAFE] L3 是固定模板，复核只多一次等待；模板哨兵由 test 保证它自己过复检。
         # 没有规则问题、又不需要复核 / 复核通过 → 直接放行，不能掉进重写分支。
@@ -256,19 +293,9 @@ def guardian_post_check(user_text: str, reply: str, level: str, role: str, rewri
         # 模型说不过 = 有问题，转去重写；判据用模型给的原因，缺了就写死标记。
         bad = [review["reason"] or "llm_review_rejected"]
 
-    # 重写只此一次：循环重试会把“模型反复犯规”变成“跑到超时”。
-    # 复核已经吃掉多少，重写就只剩多少——总预算 5 秒是硬要求，不是建议。
-    fixed = None
-    remaining = LLM_BUDGET_S - (time.monotonic() - t0)
-    if remaining > 0:
-        try:
-            if rewriter:
-                fixed = rewriter(user_text, reply, bad, role)
-            else:
-                fixed = llm_rewrite(user_text, reply, bad, role, budget_s=remaining)
-        except Exception:               # 边界：注入的 rewriter（含测试替身）
-            fixed = None
-    if fixed and not _violations(fixed, level):
+    fixed = _rewrite_once(user_text, reply, bad, role, rewriter, t0)
+    # 重写句只剩说教词时照发（体验问题不阻塞），但 rewrite=1 要记账。
+    if fixed and not _blocking(_violations(fixed, level)):
         return {"pass": True, "reason": ",".join(bad), "fixed_reply": fixed,
                 "rewrite": 1, "template_fallback": False}
 

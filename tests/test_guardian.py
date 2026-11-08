@@ -1,7 +1,8 @@
 """test_guardian.py — S09：小句级豁免 6 条（D-21 ~ D-25 + 跨句回归）；
 S10：十条 H 规则各一条（D-01 ~ D-10），命中即 L3；
 S13：回复侧复查（空回复 / 诊断词 / L3 缺资源）+ 模板哨兵；
-S14：LLM 复核 + LLM 重写，失败方向一律“更严”。"""
+S14：LLM 复核 + LLM 重写，失败方向一律“更严”；
+S15：说教词只触发重写、不改风险等级（preachy 快路径不调复核）。"""
 from __future__ import annotations
 
 import pytest
@@ -145,24 +146,25 @@ def _install_fake(monkeypatch, review_text=None, rewrite_text=None, raises=None,
 def test_review_rejection_triggers_rewrite(monkeypatch):
     """复核不通过 → 带拒因重写一次 → 复检通过。复核输入不许带记忆/历史。"""
     calls = []
-    _install_fake(monkeypatch, review_text='{"pass": false, "reason": "说教"}',
+    # 注意：回复里不能带说教词，否则会走 S15 的 preachy 快路径，复核根本不会被调用。
+    _install_fake(monkeypatch, review_text='{"pass": false, "reason": "轻视"}',
                   rewrite_text="我在，我们慢慢说。", calls=calls)
-    result = guardian_post_check("今天不想说话", "你应该振作起来。", "L1", "listener")
+    result = guardian_post_check("今天不想说话", "睡一觉就好了。", "L1", "listener")
     assert result["pass"] is True, result
     assert result["rewrite"] == 1, result
     assert result["fixed_reply"] == "我在，我们慢慢说。", result
-    assert "说教" in result["reason"], result
+    assert "轻视" in result["reason"], result
     # 复核只拿到这一句回复与这一句用户输入（§4.2 硬要求 2）
     review_msgs = calls[0]["messages"]
     assert review_msgs[0]["content"] == agent.REVIEW_SYS, calls[0]
     assert review_msgs[1]["content"] == (
-        "用户说：今天不想说话\n助手回复：你应该振作起来。\n风险等级：L1"), review_msgs[1]
+        "用户说：今天不想说话\n助手回复：睡一觉就好了。\n风险等级：L1"), review_msgs[1]
     assert calls[0]["temperature"] == 0.2, calls[0]
     assert calls[1]["temperature"] == 0.5, calls[1]
 
 
-def test_mock_unsafe_script_is_reviewed_and_rewritten():
-    """离线演示剧本：__unsafe__ 的说教句被判“说教”→ 重写 → 干净句通过。"""
+def test_mock_unsafe_script_is_rewritten():
+    """离线演示剧本：__unsafe__ 的说教句命中 SAYING → 重写 → 干净句通过。"""
     result = guardian_post_check("__unsafe__", "这没什么大不了的，你应该振作起来。",
                                  "L1", "listener")
     assert result["pass"] is True, result
@@ -228,3 +230,53 @@ def test_slow_model_is_cut_by_budget(monkeypatch):
     assert result["pass"] is False, result
     assert result["template_fallback"] is True, result
     assert result["reason"] == "review_call_failed", result
+
+# ── S15：说教词（体验层，不改等级）+ 五卡 taboos ──
+def test_saying_word_triggers_rewrite_only(monkeypatch):
+    """说教句：只重写一次，不升级、不兜底；pre_check 仍是 L1。"""
+    calls = []
+    _install_fake(monkeypatch, rewrite_text="听着挺累的。要不要先歇会儿？", calls=calls)
+    result = guardian_post_check("我好累", "你应该早点睡。", "L1", "listener")
+    assert result["pass"] is True, result
+    assert result["rewrite"] == 1, result
+    assert result["template_fallback"] is False, result
+    assert result["fixed_reply"] == "听着挺累的。要不要先歇会儿？", result
+    assert len(calls) == 1 and calls[0]["messages"][0]["content"] == agent.REWRITE_SYS, calls
+    # 说教词不进等级：pre_check 完全不引用 SAYING
+    assert guardian_pre_check("你应该")["level"] == "L1"
+
+
+def test_rewritten_reply_may_keep_saying_words(monkeypatch):
+    """硬要求 3：重写句仍带说教词 → 允许发出，但 rewrite=1 要记账。"""
+    def still_preachy(user_text, reply, bad, role):
+        return "你还是要坚强一点。"
+
+    result = guardian_post_check("好累", "你应该早点睡。", "L1", "listener",
+                                 rewriter=still_preachy)
+    assert result["pass"] is True, result
+    assert result["rewrite"] == 1, result
+    assert result["fixed_reply"] == "你还是要坚强一点。", result
+
+
+def test_saying_without_rewrite_still_sends_original(monkeypatch):
+    """硬要求 2/3：说教不是安全事故，重写失败也放原句，不升级去兜底。"""
+    def broken(user_text, reply, bad, role):
+        return None
+
+    result = guardian_post_check("好累", "你应该早点睡。", "L1", "listener", rewriter=broken)
+    assert result == {"pass": True, "reason": "preachy", "fixed_reply": None,
+                      "rewrite": 0, "template_fallback": False}, result
+
+
+def test_taboos_are_distinct_and_injected():
+    """五卡 taboos 互不相同，且必须出现在各自系统提示词的“不要这样说”里。"""
+    total = 0
+    for pid, card in agent.PERSONAS.items():
+        taboos = card["taboos"]
+        assert len(taboos) == 1, (pid, taboos)          # 每卡 ≤1 条
+        prompt = agent.build_system_prompt(pid, {}, [])
+        assert "不要这样说：" + taboos[0] in prompt, (pid, prompt)
+        total += 1
+    assert total == 5, total
+    flat = [t for card in agent.PERSONAS.values() for t in card["taboos"]]
+    assert len(set(flat)) == len(flat), flat

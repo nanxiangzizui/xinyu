@@ -196,7 +196,7 @@ dec  = {"role": "listener|guide|crisis", "reason": "default|crisis_shortcircuit|
 | S13 | ✅ | 2026-11-09 | `guardian.py` 141 → 169 行：`DIAG` / `RESOURCE` / `SAFE_FALLBACK` / `_violations` + 五步链（复查 → 重写 1 次 → 复检 → 记账 → 兜底）；`app.py` 只发 `fixed or 原文`，`action` 改执行书四值；**48 passed**（+6）；AppTest 塞入“你这是抑郁症”→ 界面与日志均无原文、`action=template_fallback`（`docs/evidence/2026-11-09-s13-postcheck.md`）。**`rewriter` 仍为 None，LLM 重写留 S14** |
 | S14 | ✅ | 2026-11-09 | `guardian.py` 169 → 252 行：`llm_review` / `llm_rewrite` / `_bounded_call`（线程 join 卡 5 秒总预算）；prompt 与 MOCK 剧本放 `agent.py`；L3 不调复核、规则先于模型、失败一律更严；**60 passed**（+7）；AppTest 说教句 → `action=rewrite, rewrite=1`，干净句 `action=pass`；真实 DeepSeek 复核 1.77s + 重写 0.59s = **2.36s**（`docs/evidence/2026-11-08-s14-llm-review.md`） |
 | S15 | ✅ | 2026-11-09 | `guardian.py` 252 → 273 行：`SAYING` 7 词（不进 `RULES`）+ `preachy` 快路径（只重写、不升级、不兜底）；`app.py` 日志在命中时追加 `rule_ids: ["SAYING"]`；五卡 `taboos` 本就在 S07 注入风格区，本步补 `test_taboos_are_distinct_and_injected`；**64 passed**（+4）；AppTest 说教句 → `action=rewrite, rewrite=1`、无 review 调用，干净句 `action=pass`；证据 `docs/evidence/2026-11-08-s15-saying-taboos.md` |
-| S16 | ⬜ | | |
+| S16 | ✅ | 2026-11-09 | `coordinator.py` 89 行：`risk_floor` / `aggregate_level`（窗口 5、3 次 L2 升 L3、L3 只留 L2 地板）；`app.py` 接 `session_state["levels"]` + `action=aggregate_escalate`；**69 passed**（+5）；AppTest 3 次“没意思”→ 第 3 轮 crisis 卡、随后回 L2 不短路（`docs/evidence/2026-11-08-s16-window-floor.md`） |
 | S17 | ⬜ | | |
 | S18 | ⬜ | | |
 | S19 | ⬜ | | |

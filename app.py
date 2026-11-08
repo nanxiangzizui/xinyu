@@ -41,12 +41,13 @@ def _bridge_secrets() -> None:
 _bridge_secrets()
 
 from agent import build_system_prompt, call_llm              # noqa: E402  顺序要紧
-from coordinator import coordinator_decide, enforce_cooldown  # noqa: E402
+from coordinator import (aggregate_level, coordinator_decide,  # noqa: E402
+                         enforce_cooldown)
 from guardian import CRISIS_REPLY, guardian_post_check, guardian_pre_check  # noqa: E402
 from logger import log_turn, session_hash                     # noqa: E402
 from memory import clear_memory, match_lore, read_memory, update_memory  # noqa: E402
 from resources import pick_resources                          # noqa: E402
-from roles import COOLDOWN                                    # noqa: E402
+from roles import COOLDOWN, N_WINDOW                          # noqa: E402
 
 logger = logging.getLogger(__name__)
 
@@ -105,21 +106,65 @@ def _log_turn(sid: str, level: str, role: str, rule_ids: list[str],
              latency_ms=int((time.perf_counter() - t0) * 1000))
 
 
+def _effective_level(raw: str) -> tuple[str, bool]:
+    """[SAFE] 会话聚合只升不降：窗口内真实 L2+ ≥3 次升 L3，出现过 L2+ 则地板 L2。
+
+    窗口只存 pre 的原始等级，不存聚合后的 eff，否则地板抬上来的 L2 会自己凑数升级。
+    """
+    levels = list(st.session_state.get("levels", []))
+    eff = aggregate_level(levels, raw)
+    # 只有升到 L3 的那轮存 eff：存地板抬上来的 L2 会让平静轮自己凑成“3 次 L2”。
+    st.session_state["levels"] = (levels + [eff if eff == "L3" else raw])[-N_WINDOW:]
+    return eff, eff != raw
+
+
+def _crisis_result(sid: str, pre: dict, escalated: bool, t0: float) -> dict:
+    """L3 短路：固定模板 + 资源卡，不调 LLM、不加载人设、不写记忆。"""
+    _mark_crisis()
+    # 聚合升级与原始 L3 用不同 action，报告里才能分清“自己说出来的”和“被窗口推上来的”。
+    action = "aggregate_escalate" if escalated else "short_circuit"
+    _log_turn(sid, "L3", "crisis", pre["rule_ids"], action, 0, t0)
+    return {"reply": CRISIS_REPLY, "level": "L3", "role": "crisis",
+            "reason": "crisis_shortcircuit",
+            "degraded": False, "short_circuit": True}
+
+
+def _log_and_result(sid: str, pre: dict, dec: dict, eff_level: str, escalated: bool,
+                    post: dict, resp: dict, reply: str, t0: float) -> dict:
+    """审后收尾：action 只取执行书四值，日志单行，等级原样往下传。"""
+    if escalated:
+        # 本轮等级被聚合抬高：优先记这件事，短路/重写原因由 rule_ids 与 rewrite 保留。
+        action = "aggregate_escalate"
+    elif post.get("template_fallback"):
+        action = "template_fallback"
+    else:
+        action = "rewrite" if post.get("rewrite") else "pass"
+    logged_ids = list(pre["rule_ids"])
+    if "preachy" in (post.get("reason") or ""):
+        # [SAFE] 执行书 §5.3.1：说教词不进 RULES，但日志要能和 H / W 组区分开。
+        logged_ids.append("SAYING")
+    _log_turn(sid, eff_level, dec["role"], logged_ids,
+              action, post.get("rewrite", 0), t0)
+    return {
+        "reply": reply,
+        "level": eff_level,
+        "role": dec["role"],
+        "reason": dec["reason"],
+        # 只看字符串会把“模型失败、guardian 换成安全兜底”误判成正常回复（S13 起会发生）。
+        "degraded": (not resp.get("ok", False)) or reply == FALLBACK_LINE,
+    }
+
+
 def handle(text: str, sid: str, history: list[dict], persona_id: str) -> dict:
     """七步固定管线；异常交给 safe_handle，不在这里吞。"""
     t0 = time.perf_counter()
     memory = read_memory(sid)                                      # 前置：读记忆
     pre = guardian_pre_check(text)                                 # 1 判危
-    if pre["level"] == "L3":
-        # [SAFE] L3 一律短路，这一轮到此为止：不调 LLM、不加载人设、不写记忆。
-        # 危机回复只能是固定模板，模型没有任何自由发挥的余地；等级也不许被后续步骤下调。
-        _mark_crisis()
-        _log_turn(sid, pre["level"], "crisis", pre["rule_ids"],
-                  "short_circuit", 0, t0)
-        return {"reply": CRISIS_REPLY, "level": "L3", "role": "crisis",
-                "reason": "crisis_shortcircuit",
-                "degraded": False, "short_circuit": True}
-    dec = coordinator_decide(memory, text, pre["level"])           # 2 定角色
+    eff_level, escalated = _effective_level(pre["level"])          # 1.5 会话聚合
+    if eff_level == "L3":
+        # [SAFE] L3 一律短路，这一轮到此为止；等级不许被后续步骤下调。
+        return _crisis_result(sid, pre, escalated, t0)
+    dec = coordinator_decide(memory, text, eff_level)              # 2 定角色
     # [SAFE] 冷却/历史危机只降 guide，不碰 crisis；L3 已在上面短路，等级不会被这里下调。
     dec = enforce_cooldown(dec, st.session_state.get("cooldown", 0),
                            st.session_state.get("ever_crisis", False))
@@ -129,30 +174,11 @@ def handle(text: str, sid: str, history: list[dict], persona_id: str) -> dict:
     resp = call_llm([{"role": "system", "content": prompt},        # 5 生成
                      *history[-10:]])
     post = guardian_post_check(text, resp.get("text", ""),         # 6 审
-                               pre["level"], dec["role"])
-    fixed = post.get("fixed_reply")
-    reply = fixed or resp.get("text") or FALLBACK_LINE
+                               eff_level, dec["role"])
+    reply = post.get("fixed_reply") or resp.get("text") or FALLBACK_LINE
     update_memory(sid, text, reply)                                # 7 记
-    # action 只能是执行书写的四值：pass / rewrite / template_fallback / short_circuit。
-    # 兜底优先于重写：两者同时为真时，这一轮真正发出去的是模板句。
-    if post.get("template_fallback"):
-        action = "template_fallback"
-    else:
-        action = "rewrite" if post.get("rewrite") else "pass"
-    logged_ids = list(pre["rule_ids"])
-    if "preachy" in (post.get("reason") or ""):
-        # [SAFE] 执行书 §5.3.1：说教词不进 RULES，但日志要能和 H / W 组区分开。
-        logged_ids.append("SAYING")
-    _log_turn(sid, pre["level"], dec["role"], logged_ids,
-              action, post.get("rewrite", 0), t0)
-    return {
-        "reply": reply,
-        "level": pre["level"],
-        "role": dec["role"],
-        "reason": dec["reason"],
-        # 只看字符串会把“模型失败、guardian 换成安全兜底”误判成正常回复（S13 起会发生）。
-        "degraded": (not resp.get("ok", False)) or reply == FALLBACK_LINE,
-    }
+    return _log_and_result(sid, pre, dec, eff_level, escalated,
+                           post, resp, reply, t0)
 
 
 def safe_handle(text: str, sid: str, history: list[dict], persona_id: str) -> dict:
@@ -199,6 +225,7 @@ def _clear(sid: str) -> None:
     st.session_state["last_role"] = "listener"
     st.session_state["last_level"] = "L1"
     st.session_state["last_reason"] = "default"
+    st.session_state["levels"] = []
     st.query_params["u"] = uuid.uuid4().hex[:12]
     st.rerun()
 
@@ -242,7 +269,8 @@ def main() -> None:
     # 冷却与“有过危机”只活在本会话：刷新即重置，这是 S11 的既定口径，不是 bug。
     for key, default in (("cooldown", 0), ("ever_crisis", False),
                          ("last_role", "listener"), ("last_level", "L1"),
-                         ("last_reason", "default"), ("turn", 0)):
+                         ("last_reason", "default"), ("turn", 0),
+                         ("levels", [])):
         st.session_state.setdefault(key, default)
 
     _render_history(st.session_state.messages)

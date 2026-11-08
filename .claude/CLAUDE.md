@@ -1,7 +1,7 @@
 # 心屿 MindIsle · 项目状态与规则
 
 > **本文件是唯一状态源。** 其他文件（SKILL.md、README、.mdc）只讲方法、格式和摘要，状态一律以这里为准。
-> 最后更新：2026-11-08（S15 说教词 + taboos：64 passed；W2 两项盲读仍待做）
+> 最后更新：2026-11-08（S16 会话聚合 + 风险地板：69 passed；W2 两项盲读仍待做）
 
 ## 0. 三分钟了解
 
@@ -160,10 +160,11 @@
 
 - ✅ **S14 LLM 复核 + 重写（2026-11-08）**：`guardian.py` 169 → 252 行，新增 `llm_review`（`temperature=0.2`，失败/非 JSON/非 bool 一律 `pass=False`）、`llm_rewrite`（`temperature=0.5`，带 `需要修正：{reasons}`）、`_bounded_call`（守护线程 `join(budget)`，**复核+重写总预算 5 秒**，重写只用剩余时间）；prompt 与 MOCK 剧本放 `agent.py`（`REVIEW_SYS` / `REWRITE_SYS` / `MOCK_REVIEW_BAD` / `MOCK_REWRITE_LINE`），guardian 引用同一常量避免双份 prompt 漂移。判定链：规则有 bad → 直接重写（规则优先）；无 bad 且非 L3 → 复核；L3 直接放行。**60 passed（+7 条）**，contract **11/11 + 5/5 + 20/20**；AppTest 说教句 → `action=rewrite / rewrite=1`、原文与说教句均未出街，干净句 `action=pass`；真实 DeepSeek 复核 1.77s + 重写 0.59s = **2.36s**（<6s）。三处口径修正：①step 示例 `bool(data["pass"])` 会把字符串 `"false"` 当通过，已改 `isinstance(..., bool)`；②step 示例没有预算实现，补 `_bounded_call`；③L3 无 bad 时必须立即返回，否则 `CRISIS_REPLY` 会被重写句替掉、模板哨兵变红。证据 `docs/evidence/2026-11-08-s14-llm-review.md`
 
-**下一步（S15→S16）**：S15 已完成；下一步按 `step/S16-*.md` 做会话聚合 `N_WINDOW=5` 与风险地板，`v0.3` 留给 S21。
 - ✅ **S15 说教词 + taboos（2026-11-08）**：`guardian.py` 252 → 273 行：`SAYING` 正则只认 7 个说教词（`你应该|你必须|别想太多|这没什么|我当年|你要坚强|振作起来`），**不进 `RULES`**、不参与分级；`_violations` 追加 `preachy`，`_blocking()` 把它从阻断项里剔除；preachy 快路径 → 只重写一次、**不调 LLM 复核**（说教不是安全事件），重写句仍带说教词也允许发出（`rewrite=1` 记账），重写不可用则发原句。`app.py` 在 `post.reason` 含 `preachy` 时给日志 `rule_ids` 追加 `SAYING`（执行书 §5.3.1，字段仍是 9 个）。五卡 `taboos` 不是新增——S07 的卡里已有、`agent._style_block` 早已注入“不要这样说：…”，本步补 `test_taboos_are_distinct_and_injected`（每卡 1 条、5 条互异、均出现在 prompt）。**64 passed（+4）**，contract **11/11 + 5/5 + 20/20**；AppTest 说教句 → calls 只有 gen + rewrite、`action=rewrite / rewrite=1`、日志 `rule_ids: ['W01','SAYING']`，干净句 `action=pass`。口径修正：步骤文件写 52（旧基数，实际 64）；"不改变 RULES 统计"与执行书要求日志记 `SAYING` 并存，加在 `app.py` 而非 `RULES`。证据 `docs/evidence/2026-11-08-s15-saying-taboos.md`
 
-**下一步（S16）**：会话聚合 `N_WINDOW=5` + 风险地板（`coordinator.py` / `guardian.py`），确保聚合只升不降。
+- ✅ **S16 会话聚合 + 风险地板（2026-11-08）**：`coordinator.py` 46 → 89 行，新增 `risk_floor` / `aggregate_level`（`ESCALATE_AT=3`，窗口 `N_WINDOW=5` 取自 roles）；`app.py` 275 → 303 行，`_effective_level()` 读写 `session_state["levels"]`（只存最近 5 条），`handle()` 拆出 `_crisis_result` / `_log_and_result`，全部下游改用 `eff_level`；升级轮日志 `action=aggregate_escalate`（单行，不重复计轮）。**69 passed（+5）**，contract **11/11 + 5/5 + 20/20**；AppTest 连发 3 次“没意思” → 第 3 轮 `L3 aggregate_escalate crisis`、资源卡 3 张、`calls=[]`；随后 3 轮平静句停在 L2 不再短路（C-12）。四处口径修正：①地板取“出现过 L2+ → L2”而非 step 的 `max(history)`（后者与测试表 #2 自相矛盾）；②窗口存 raw 等级，只有升 L3 那轮存 L3；③升级只数恰好 L2；④升级只写一行日志。证据 `docs/evidence/2026-11-08-s16-window-floor.md`
+
+**下一步（S17）**：摘要节流（`SUMMARY_EVERY=5` / `SUMMARY_MAX=200`）与 `rolling_summary`，prompt 禁人名。
 
 - ✅ **规则缺口补丁 + 复核四项收尾（2026-11-08）**：`roles.py` 只改 4 条正则（X01 否定句补"没有想过/从没想过要"、X03 补"论文/作业/报道"反向分支、H04 补"天台 + 跳下去"并负向断言排除游泳、H06 补"买/囤 + 安眠药"）；`tests/test_guardian.py` +5 条 `GAP_CASES`（D-29~D-32 + 一条护栏），先红后绿；**53 passed**，contract **11/11 + 5/5 + 20/20**。执行书同步升 **v1.2**（附录 B 四条正则 + 变更记录 + 新增附录 D-5，注明不计入分母）。四处决策的处理：①证据日期**不改名**，13 个证据文件头加"实际生成于 2026-11-08"；②规则按上一条补；③S08–S13 拆 5 个提交 + `v0.2`；④执行书 :1128 的"39 passed"旧基数不动。证据 `docs/evidence/2026-11-08-rule-gap-patch.md`
 

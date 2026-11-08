@@ -5,10 +5,13 @@
   - 求助词切 guide（C-05）
   - 默认 listener（C-01 不误切）
   - 冷却 / 历史危机只降 guide，且永不回 guide
+
+S16 另加 5 条：聚合升 L3、风险地板只升不降、窗口外旧等级不再算数。
 """
 from __future__ import annotations
 
-from coordinator import ADVICE_WORDS, REASONS, coordinator_decide, enforce_cooldown
+from coordinator import (ADVICE_WORDS, REASONS, aggregate_level, coordinator_decide,
+                         enforce_cooldown, risk_floor)
 
 
 def test_l3_always_crisis():
@@ -52,3 +55,46 @@ def test_cooldown_and_after_crisis_never_guide():
     dec = coordinator_decide({"current_role": "crisis"}, "我该怎么办", "L1")
     assert dec == {"role": "listener", "reason": "after_crisis"}
     assert dec["reason"] in REASONS
+
+# ---- S16：会话聚合 + 风险地板（step/S16-window-floor.md） ----
+
+def test_floor_empty_history_returns_current():
+    """没有历史时地板就是本轮原文等级，不许凭空抬高。"""
+    assert risk_floor([], "L1") == "L1"
+    assert aggregate_level([], "L1") == "L1"
+
+
+def test_floor_crisis_leaves_l2_not_l3():
+    """窗口里出现过 L3，之后地板是 L2 而不是 L3。
+
+    危机当轮已经发过资源卡并短路；若地板继续给 L3，之后每一轮都会再次
+    短路发同一张卡，用户没法继续说话。执行书附录 C 的 C-12 也要求
+    危机后下一轮只到 L2、角色回到 listener。
+    """
+    assert risk_floor(["L3"], "L1") == "L2"
+    assert risk_floor(["L3", "L2"], "L1") == "L2"
+    assert aggregate_level(["L3", "L2"], "L1") == "L2"
+
+
+def test_aggregate_three_l2_in_window_escalates():
+    """5 轮内第 3 次 L2 才升 L3；升级看的是真实命中，不是被地板抬上来的等级。"""
+    assert aggregate_level(["L2", "L2", "L1"], "L2") == "L3"
+    assert risk_floor(["L2", "L2", "L1"], "L2") == "L2"
+    # 升级那轮在窗口里记成 L3，下一轮平静句只回到地板 L2，不再重复短路发卡。
+    assert aggregate_level(["L2", "L2", "L3"], "L1") == "L2"
+
+
+def test_aggregate_two_l2_does_not_escalate():
+    """只有 2 次 L2 不许升级：用 3 不用 2，避免两次情绪低落就发危机卡。"""
+    assert aggregate_level(["L2", "L2"], "L1") == "L2"
+    assert aggregate_level(["L2", "L1", "L1"], "L2") == "L2"
+
+
+def test_aggregate_never_lowers_level():
+    """只升不降：任何历史组合下，输出等级都不得低于本轮输入等级。"""
+    order = {"L1": 1, "L2": 2, "L3": 3}
+    histories = ([], ["L1"], ["L2"], ["L3"], ["L2", "L1", "L3"], ["L1"] * 5)
+    for history in histories:
+        for current in ("L1", "L2", "L3"):
+            assert order[aggregate_level(list(history), current)] >= order[current]
+            assert order[risk_floor(list(history), current)] >= order[current]

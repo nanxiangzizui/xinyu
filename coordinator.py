@@ -1,6 +1,8 @@
 """coordinator.py — 三角色状态机 + 会话聚合 + 只升不降。"""
 from __future__ import annotations
 
+from roles import N_WINDOW
+
 # 求助词表：宁窄勿宽。只收明确的“要我给办法”，不收“怎么”这种半句，
 # 否则“怎么又下雨了”也会切 guide（S11 §8）。
 ADVICE_WORDS = ("怎么办", "建议", "该不该", "如何", "怎么选", "帮我分析", "要不要")
@@ -44,3 +46,44 @@ def enforce_cooldown(decision: dict, cooldown_left: int, ever_crisis: bool) -> d
     if isinstance(cooldown_left, int) and cooldown_left > 0:
         return {"role": "listener", "reason": "crisis_cooldown"}
     return decision
+
+# ---- S16：会话聚合 + 风险地板 ----
+RANK = {"L1": 1, "L2": 2, "L3": 3}
+NAME = {1: "L1", 2: "L2", 3: "L3"}
+ESCALATE_AT = 3   # 窗口内 L2+ 达到 3 次才升 L3；用 3 不用 2，见 step/S16 §1
+
+
+def _rank(level: str) -> int:
+    """等级转序数；未知值按 L1 记（窗口只由 pre_check 写入，不接外部输入）。"""
+    return RANK.get(level, 1)
+
+
+def _name(value: int) -> str:
+    """序数转等级，并夹在 1..3：聚合溢出也不许产生 L4 这种不存在的等级。"""
+    return NAME.get(max(1, min(3, value)), "L1")
+
+
+def risk_floor(history: list[str], current: str) -> str:
+    """窗口内出现过 L2+ → 本轮至少 L2；L3 也只给 L2 地板。
+
+    为什么 L3 不给 L3 地板：L3 当轮已经短路发过资源卡，若之后每轮仍按 L3
+    处理，界面会连续五轮重复同一张卡，用户没法继续说话；执行书附录 C 的
+    C-12 也要求危机后下一轮是 L2、角色回到 listener。
+    为什么不能降：返回值取 max(floor, current)，current 更严重时一定保留。
+    """
+    recent = (history or [])[-N_WINDOW:]
+    floor = 2 if any(_rank(x) >= 2 for x in recent) else 1
+    return _name(max(floor, _rank(current)))
+
+
+def aggregate_level(history: list[str], current: str) -> str:
+    """近 N_WINDOW 轮（含本轮）真实 L2 恰好 3 次 → L3，否则走风险地板。
+
+    history 必须是 pre_check 的原始等级（升到 L3 的那轮除外），不能存每轮的
+    effective level：否则一次 L2 被地板抬成 L2 后每轮都在“凑数”，三轮就把
+    所有用户打成 L3。升级那轮改存 L3，是为了让这 3 次 L2 不再重复触发。
+    """
+    window = ((history or []) + [current])[-N_WINDOW:]
+    if sum(1 for x in window if x == "L2") >= ESCALATE_AT:
+        return "L3"
+    return risk_floor(history, current)

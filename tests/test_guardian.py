@@ -1,10 +1,20 @@
 """test_guardian.py — S09：小句级豁免 6 条（D-21 ~ D-25 + 跨句回归）；
-S10：十条 H 规则各一条（D-01 ~ D-10），命中即 L3。"""
+S10：十条 H 规则各一条（D-01 ~ D-10），命中即 L3；
+S13：回复侧复查（空回复 / 诊断词 / L3 缺资源）+ 模板哨兵；
+S14：LLM 复核 + LLM 重写，失败方向一律“更严”。"""
 from __future__ import annotations
 
 import pytest
 
+import agent
+import guardian
 from guardian import guardian_pre_check
+
+
+@pytest.fixture(autouse=True)
+def _offline(monkeypatch):
+    """本文件整体离线跑 MOCK：复核/重写都走 agent 的确定性剧本，不联网。"""
+    monkeypatch.setenv("MOCK_LLM", "1")
 
 CASES = [
     ("我不想死", "L1", "X01", True),
@@ -47,13 +57,17 @@ def test_high_risk_hits_l3(text, rule_id):
 from guardian import CRISIS_REPLY, SAFE_FALLBACK, guardian_post_check
 
 
-def test_diagnosis_language_is_blocked():
-    """模型自己下诊断 = 一票否决，换成 listener 兜底句，不许原话出街。"""
+def test_diagnosis_language_never_reaches_user():
+    """模型下诊断 = 规则先拦；重写句必须再过复检，原文一个字都不许出街。
+
+    MOCK 的重写句是干净的，所以这一轮算“重写通过”；真模型写不合格就走兜底
+    （下面 test_bad_rewrite_is_rechecked_and_falls_back 覆盖那条路径）。
+    """
     result = guardian_post_check("最近很难受", "你这是焦虑症，得吃药", "L1", "listener")
-    assert result["pass"] is False, result
-    assert result["reason"] == "diagnosis_language", result
-    assert result["template_fallback"] is True, result
-    assert result["fixed_reply"] == SAFE_FALLBACK["listener"], result
+    assert "diagnosis_language" in result["reason"], result
+    assert result["rewrite"] == 1, result
+    assert result["pass"] is True, result
+    assert "焦虑症" not in (result["fixed_reply"] or ""), result
 
 
 @pytest.mark.parametrize("reply", ["我在听你说，慢慢来。", ""])
@@ -110,3 +124,107 @@ def test_gap_patch(text, level, rule_id, exempted):
     if rule_id is not None:
         assert rule_id in result["rule_ids"], (text, result)
     assert result["exempted"] is exempted, (text, result)
+
+# ── S14：LLM 复核 + LLM 重写 ──
+def _install_fake(monkeypatch, review_text=None, rewrite_text=None, raises=None, calls=None):
+    """按 system prompt 区分复核/重写，模拟模型返回；测试只关心 guardian 怎么用返回值。"""
+    def fake(messages, temperature=0.7):
+        if calls is not None:
+            calls.append({"temperature": temperature, "messages": messages})
+        if raises is not None:
+            raise raises
+        head = messages[0]["content"]
+        text = review_text if head == agent.REVIEW_SYS else rewrite_text
+        if text is None:
+            return {"text": "", "ok": False, "error": "FakeFailure", "latency_ms": 0}
+        return {"text": text, "ok": True, "error": "", "latency_ms": 0}
+
+    monkeypatch.setattr(agent, "call_llm", fake)
+
+
+def test_review_rejection_triggers_rewrite(monkeypatch):
+    """复核不通过 → 带拒因重写一次 → 复检通过。复核输入不许带记忆/历史。"""
+    calls = []
+    _install_fake(monkeypatch, review_text='{"pass": false, "reason": "说教"}',
+                  rewrite_text="我在，我们慢慢说。", calls=calls)
+    result = guardian_post_check("今天不想说话", "你应该振作起来。", "L1", "listener")
+    assert result["pass"] is True, result
+    assert result["rewrite"] == 1, result
+    assert result["fixed_reply"] == "我在，我们慢慢说。", result
+    assert "说教" in result["reason"], result
+    # 复核只拿到这一句回复与这一句用户输入（§4.2 硬要求 2）
+    review_msgs = calls[0]["messages"]
+    assert review_msgs[0]["content"] == agent.REVIEW_SYS, calls[0]
+    assert review_msgs[1]["content"] == (
+        "用户说：今天不想说话\n助手回复：你应该振作起来。\n风险等级：L1"), review_msgs[1]
+    assert calls[0]["temperature"] == 0.2, calls[0]
+    assert calls[1]["temperature"] == 0.5, calls[1]
+
+
+def test_mock_unsafe_script_is_reviewed_and_rewritten():
+    """离线演示剧本：__unsafe__ 的说教句被判“说教”→ 重写 → 干净句通过。"""
+    result = guardian_post_check("__unsafe__", "这没什么大不了的，你应该振作起来。",
+                                 "L1", "listener")
+    assert result["pass"] is True, result
+    assert result["rewrite"] == 1, result
+    assert "你应该振作" not in (result["fixed_reply"] or ""), result
+
+
+def test_review_timeout_falls_back(monkeypatch):
+    """复核超时 = 不通过；重写也失败就发兜底句，异常绝不上抛。"""
+    _install_fake(monkeypatch, raises=TimeoutError("read timed out"))
+    result = guardian_post_check("今天有点累", "听起来今天挺耗人的。", "L1", "listener")
+    assert result["pass"] is False, result
+    assert result["template_fallback"] is True, result
+    assert result["rewrite"] == 0, result
+    assert result["reason"] == "review_error_TimeoutError", result
+    assert result["fixed_reply"] == SAFE_FALLBACK["listener"], result
+
+
+def test_review_garbage_json_falls_back(monkeypatch):
+    """复核返回非 JSON + 重写失败 → 解析失败按不通过处理。"""
+    _install_fake(monkeypatch, review_text="不是 JSON，但我保证没问题")
+    result = guardian_post_check("有点慌", "我在这儿。", "L1", "listener")
+    assert result["pass"] is False, result
+    assert result["template_fallback"] is True, result
+    assert result["reason"] == "review_parse_failed", result
+
+
+def test_rules_beat_model_review(monkeypatch):
+    """规则优先于模型：回复带诊断词时连复核都不调，模型说 pass 也救不回来。"""
+    calls = []
+    _install_fake(monkeypatch, review_text='{"pass": true, "reason": ""}',
+                  rewrite_text="我在，我们慢慢说。", calls=calls)
+    result = guardian_post_check("最近很难受", "你这是抑郁症，得吃药", "L1", "listener")
+    assert "diagnosis_language" in result["reason"], result
+    assert "抑郁症" not in (result["fixed_reply"] or ""), result
+    assert len(calls) == 1, calls                       # 只调了重写，没调复核
+    assert calls[0]["messages"][0]["content"] == agent.REWRITE_SYS, calls[0]
+
+
+def test_l3_skips_llm_review(monkeypatch):
+    """L3 是固定模板，复核没意义：一次模型调用都不该有。"""
+    calls = []
+    _install_fake(monkeypatch, review_text='{"pass": true}', rewrite_text="x", calls=calls)
+    result = guardian_post_check("我不想活了", CRISIS_REPLY, "L3", "crisis")
+    assert result["pass"] is True, result
+    assert result["rewrite"] == 0, result
+    assert calls == [], calls
+
+def test_slow_model_is_cut_by_budget(monkeypatch):
+    """慢模型拖不住界面：预算内没结果就按不通过，实测必须在预算附近返回。"""
+    import time as _time
+
+    def slow(messages, temperature=0.7):
+        _time.sleep(0.5)
+        return {"text": '{"pass": true, "reason": ""}', "ok": True, "error": "", "latency_ms": 500}
+
+    monkeypatch.setattr(agent, "call_llm", slow)
+    monkeypatch.setattr(guardian, "LLM_BUDGET_S", 0.1)
+    t0 = _time.monotonic()
+    result = guardian_post_check("有点累", "我在这儿。", "L1", "listener")
+    elapsed = _time.monotonic() - t0
+    assert elapsed < 0.4, elapsed
+    assert result["pass"] is False, result
+    assert result["template_fallback"] is True, result
+    assert result["reason"] == "review_call_failed", result

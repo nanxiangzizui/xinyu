@@ -1,7 +1,7 @@
 # 心屿 MindIsle · 项目状态与规则
 
 > **本文件是唯一状态源。** 其他文件（SKILL.md、README、.mdc）只讲方法、格式和摘要，状态一律以这里为准。
-> 最后更新：2026-11-08（规则补丁收尾：53 passed，执行书升 v1.2，待提交 v0.2 tag；W2 两项盲读仍待做）
+> 最后更新：2026-11-08（S14 LLM 复核 + 重写：60 passed，v0.2 已推；W2 两项盲读仍待做）
 
 ## 0. 三分钟了解
 
@@ -158,7 +158,9 @@
 
 - ✅ **S13 post_check 五步链（2026-11-08）**：`guardian.py` 141 → 169 行（`DIAG` / `RESOURCE` / `SAFE_FALLBACK` / `_violations` / 五步链），`SAFE_FALLBACK["crisis"]` 直连 `CRISIS_REPLY`（兜底与短路同文）；`app.py` 只发 `fixed or 原文`，`action` 由固定 `generate` 改为执行书四值 `pass / rewrite / template_fallback`（`short_circuit` 不变）。**48 passed（+6）**，contract **11/11 + 5/5 + 20/20**；AppTest 把 `agent.call_llm` 换成固定返回「你这是抑郁症，建议服药」→ 界面只有兜底句、日志 `action=template_fallback`、原文泄漏 0；干净回复原样通过不误伤。口径修正：`rewrite` 只记“真的重写过”，本步 `rewriter=None`，所以被拦是 `rewrite=0 + template_fallback=True`，W3 的“`rewrite=1`”留给 S14 截图；`pass=False` 不是“不发”。证据 `docs/evidence/2026-11-09-s13-postcheck.md`
 
-**下一步（S14）**：按 `step/S14-*.md` 把 `rewriter` 接上 LLM 复核与重写，失败按“不通过”处理。
+- ✅ **S14 LLM 复核 + 重写（2026-11-08）**：`guardian.py` 169 → 252 行，新增 `llm_review`（`temperature=0.2`，失败/非 JSON/非 bool 一律 `pass=False`）、`llm_rewrite`（`temperature=0.5`，带 `需要修正：{reasons}`）、`_bounded_call`（守护线程 `join(budget)`，**复核+重写总预算 5 秒**，重写只用剩余时间）；prompt 与 MOCK 剧本放 `agent.py`（`REVIEW_SYS` / `REWRITE_SYS` / `MOCK_REVIEW_BAD` / `MOCK_REWRITE_LINE`），guardian 引用同一常量避免双份 prompt 漂移。判定链：规则有 bad → 直接重写（规则优先）；无 bad 且非 L3 → 复核；L3 直接放行。**60 passed（+7 条）**，contract **11/11 + 5/5 + 20/20**；AppTest 说教句 → `action=rewrite / rewrite=1`、原文与说教句均未出街，干净句 `action=pass`；真实 DeepSeek 复核 1.77s + 重写 0.59s = **2.36s**（<6s）。三处口径修正：①step 示例 `bool(data["pass"])` 会把字符串 `"false"` 当通过，已改 `isinstance(..., bool)`；②step 示例没有预算实现，补 `_bounded_call`；③L3 无 bad 时必须立即返回，否则 `CRISIS_REPLY` 会被重写句替掉、模板哨兵变红。证据 `docs/evidence/2026-11-08-s14-llm-review.md`
+
+**下一步（S15）**：按 `step/S15-*.md` 收口说教词与 taboos（体验层），并把 `v0.3` 留给 S21。
 
 - ✅ **规则缺口补丁 + 复核四项收尾（2026-11-08）**：`roles.py` 只改 4 条正则（X01 否定句补"没有想过/从没想过要"、X03 补"论文/作业/报道"反向分支、H04 补"天台 + 跳下去"并负向断言排除游泳、H06 补"买/囤 + 安眠药"）；`tests/test_guardian.py` +5 条 `GAP_CASES`（D-29~D-32 + 一条护栏），先红后绿；**53 passed**，contract **11/11 + 5/5 + 20/20**。执行书同步升 **v1.2**（附录 B 四条正则 + 变更记录 + 新增附录 D-5，注明不计入分母）。四处决策的处理：①证据日期**不改名**，13 个证据文件头加"实际生成于 2026-11-08"；②规则按上一条补；③S08–S13 拆 5 个提交 + `v0.2`；④执行书 :1128 的"39 passed"旧基数不动。证据 `docs/evidence/2026-11-08-rule-gap-patch.md`
 

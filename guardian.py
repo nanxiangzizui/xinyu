@@ -2,7 +2,10 @@
 from __future__ import annotations
 
 import re
+import threading
+import time
 
+import agent
 from roles import COMPILED, RULES
 
 # 切小句：中英文标点都要覆盖。豁免只在一个小句内生效，绝不跨句。
@@ -160,19 +163,111 @@ def _violations(reply: str, level: str) -> list[str]:
     return bad
 
 
+# [SAFE] 复核 + 重写的总时间预算：卡住的模型等于没通过，不该再吃第二次等待。
+LLM_BUDGET_S = 5.0
+
+
+def _bounded_call(messages: list[dict], temperature: float, budget_s: float):
+    """[SAFE] 按墙钟卡住一次模型调用：超时就返回 None，不让界面陪着等 15 秒。
+
+    客户端 timeout=15 只是兜底（S04 口径），演示体验要的是 5 秒内有结果，
+    所以这里用守护线程 join(budget)；超时的线程自己会随 15 秒超时结束，不阻塞退出。
+    """
+    if budget_s <= 0:
+        return None
+    box: dict = {}
+
+    def run() -> None:
+        try:
+            box["out"] = agent.call_llm(messages, temperature)
+        except Exception as exc:        # 边界：LLM 调用，异常交给调用方分类
+            box["err"] = exc
+
+    worker = threading.Thread(target=run, daemon=True)
+    worker.start()
+    worker.join(budget_s)
+    if worker.is_alive():               # 预算用完 = 没有结果，按“不通过”处理
+        return None
+    if "err" in box:
+        raise box["err"]
+    return box.get("out")
+
+
+def _review_messages(user_text: str, reply: str, level: str) -> list[dict]:
+    """复核只看这一句回复与这一句用户输入：不带记忆、不带历史。"""
+    return [
+        {"role": "system", "content": agent.REVIEW_SYS},
+        {"role": "user",
+         "content": f"用户说：{user_text}\n助手回复：{reply}\n风险等级：{level}"},
+    ]
+
+
+def llm_review(user_text: str, reply: str, level: str, *, budget_s: float = LLM_BUDGET_S) -> dict:
+    """模型自查回复；超时 / 调用失败 / 解析失败 / 字段缺失一律 pass=False。"""
+    try:
+        out = _bounded_call(_review_messages(user_text, reply, level), 0.2, budget_s)
+        if not isinstance(out, dict) or not out.get("ok"):
+            return {"pass": False, "reason": "review_call_failed"}
+        data = agent.safe_json(out.get("text") or "")
+        # 只认真正的布尔：模型给 "true" / "yes" 这类字符串一律当解析失败，
+        # 否则“判据不可执行”会被读成“模型说没问题”。
+        if not isinstance(data, dict) or not isinstance(data.get("pass"), bool):
+            return {"pass": False, "reason": "review_parse_failed"}
+        return {"pass": data["pass"], "reason": str(data.get("reason") or "")[:60]}
+    except Exception as exc:            # 边界：LLM 调用（超时 / 网络 / 缺 Key）
+        return {"pass": False, "reason": f"review_error_{type(exc).__name__}"}
+
+
+def llm_rewrite(user_text: str, reply: str, reasons: list[str], role: str,
+                *, budget_s: float = LLM_BUDGET_S) -> str | None:
+    """带拒因重写一次；任何失败（含超预算）返回 None，由 post_check 走兜底。"""
+    msgs = [
+        {"role": "system", "content": agent.REWRITE_SYS},
+        {"role": "user",
+         "content": (f"用户说：{user_text}\n原回复：{reply}\n"
+                     f"需要修正：{','.join(reasons)}\n角色：{role}")},
+    ]
+    try:
+        out = _bounded_call(msgs, 0.5, budget_s)
+    except Exception:                   # 边界：LLM 调用
+        return None
+    if not isinstance(out, dict) or not out.get("ok"):
+        return None
+    text = (out.get("text") or "").strip()
+    return text or None
+
+
 def guardian_post_check(user_text: str, reply: str, level: str, role: str, rewriter=None) -> dict:
-    """五步：复查 → 重写 1 次 → 复检 → 记账 → 兜底。不通过就不发。
+    """五步：复查 → 复核 → 重写 1 次 → 复检 → 兜底。不通过就不发。
 
     pass=False 的含义是“原回复不可用”，不是“不发消息”：永远要发一句安全的话，
     所以三段返回都带 fixed_reply 或可用的原文。
     """
+    t0 = time.monotonic()
     bad = _violations(reply, level)
     if not bad:
-        return {"pass": True, "reason": "", "fixed_reply": None,
-                "rewrite": 0, "template_fallback": False}
+        # [SAFE] L3 是固定模板，复核只多一次等待；模板哨兵由 test 保证它自己过复检。
+        # 没有规则问题、又不需要复核 / 复核通过 → 直接放行，不能掉进重写分支。
+        review = None if level == "L3" else llm_review(
+            user_text, reply, level, budget_s=LLM_BUDGET_S)
+        if review is None or review["pass"]:
+            return {"pass": True, "reason": "", "fixed_reply": None,
+                    "rewrite": 0, "template_fallback": False}
+        # 模型说不过 = 有问题，转去重写；判据用模型给的原因，缺了就写死标记。
+        bad = [review["reason"] or "llm_review_rejected"]
 
     # 重写只此一次：循环重试会把“模型反复犯规”变成“跑到超时”。
-    fixed = rewriter(user_text, reply, bad, role) if rewriter else None
+    # 复核已经吃掉多少，重写就只剩多少——总预算 5 秒是硬要求，不是建议。
+    fixed = None
+    remaining = LLM_BUDGET_S - (time.monotonic() - t0)
+    if remaining > 0:
+        try:
+            if rewriter:
+                fixed = rewriter(user_text, reply, bad, role)
+            else:
+                fixed = llm_rewrite(user_text, reply, bad, role, budget_s=remaining)
+        except Exception:               # 边界：注入的 rewriter（含测试替身）
+            fixed = None
     if fixed and not _violations(fixed, level):
         return {"pass": True, "reason": ",".join(bad), "fixed_reply": fixed,
                 "rewrite": 1, "template_fallback": False}

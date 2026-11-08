@@ -24,6 +24,21 @@ MOCK_LINES = (
     "嗯，我听到了。你现在最想说的是哪一部分？",
 )
 
+# [SAFE] S14 复核/重写 prompt 放这里：guardian 通过 agent.REVIEW_SYS 引用同一常量，
+# MOCK 才能按 system 原文精确分派剧本，两处各写一份 prompt 迟早漂。
+# 复核只看这一句回复是否越界：不给记忆、不给会话历史，隐私不随复核外溢。
+REVIEW_SYS = ("你是内容安全审核员。只输出 JSON：{\"pass\": true 或 false, "
+              "\"reason\": \"简短中文原因\"}。"
+              "判定为 false 的情形：下诊断、推荐药物、承诺保密、追问自杀细节、说教、超过 4 句。")
+# 重写必须写明"改哪些、为什么"，否则模型只会换同义词。
+REWRITE_SYS = ("你在改写一段心理支持回复。保持原意，只改被标出的问题。"
+               "要求：3 句以内、不说教、不诊断、不追问危机细节；危机场景必须包含 12356。"
+               "只输出改写后的正文。")
+
+# MOCK 剧本：命中这些标记就当"复核不通过"，让离线演示也能演一次重写。
+MOCK_REVIEW_BAD = ("你应该振作", "没什么大不了", "__unsafe__")
+MOCK_REWRITE_LINE = "我在。你不用急着好起来，我们先慢慢说。"
+
 _client: OpenAI | None = None
 
 
@@ -50,8 +65,16 @@ def _mock(messages: list[dict]) -> dict:
     测试与演示都断言不了。
     """
     last = _last_user(messages)
-    if "__fail__" in last:
+    joined = "\n".join(str(m.get("content") or "") for m in messages)
+    head = str(messages[0].get("content") or "") if messages else ""
+    if "__fail__" in joined:
         return {"text": "", "ok": False, "error": "MockFailure", "latency_ms": 0}
+    if head == REVIEW_SYS:
+        bad = any(mark in joined for mark in MOCK_REVIEW_BAD)
+        text = '{"pass": false, "reason": "说教"}' if bad else '{"pass": true, "reason": ""}'
+        return {"text": text, "ok": True, "error": "", "latency_ms": 0}
+    if head == REWRITE_SYS:
+        return {"text": MOCK_REWRITE_LINE, "ok": True, "error": "", "latency_ms": 0}
     if "__unsafe__" in last:
         return {"text": "这没什么大不了的，你应该振作起来。",
                 "ok": True, "error": "", "latency_ms": 0}

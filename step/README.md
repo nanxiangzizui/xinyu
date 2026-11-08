@@ -194,7 +194,7 @@ dec  = {"role": "listener|guide|crisis", "reason": "default|crisis_shortcircuit|
 | S11 | ✅ | 2026-11-09 | `coordinator.py` 46 行（`coordinator_decide` + `enforce_cooldown`，reason 六枚举，无 streamlit 依赖）；`app.py` 接冷却并在侧栏显示角色 / 等级 / 原因；`tests/test_flow.py` **4 passed**（累计 40）；AppTest：C-01 listener / C-05 guide / C-09 crisis，危机后永不回 guide（`docs/evidence/2026-11-09-s11-state-machine.md`） |
 | S12 | ✅ | 2026-11-09 | `logger.py` 36 行（9 字段白名单 / sha256 短哈希 / 写失败只 WARN）；`app.py` L3 与正常轮各写一行（`short_circuit` / `generate`，**S13 起因执行书改为四值**）；侧栏中文标签 + 轮次 + 记忆摘要 + 清除记忆；`tests/test_log.py` **2 passed**（累计 42）；AppTest 3 轮日志无原文、清空真删、只读 LOG_DIR 不影响对话（`docs/evidence/2026-11-09-s12-logging-sidebar.md`） |
 | S13 | ✅ | 2026-11-09 | `guardian.py` 141 → 169 行：`DIAG` / `RESOURCE` / `SAFE_FALLBACK` / `_violations` + 五步链（复查 → 重写 1 次 → 复检 → 记账 → 兜底）；`app.py` 只发 `fixed or 原文`，`action` 改执行书四值；**48 passed**（+6）；AppTest 塞入“你这是抑郁症”→ 界面与日志均无原文、`action=template_fallback`（`docs/evidence/2026-11-09-s13-postcheck.md`）。**`rewriter` 仍为 None，LLM 重写留 S14** |
-| S14 | ⬜ | | |
+| S14 | ✅ | 2026-11-09 | `guardian.py` 169 → 252 行：`llm_review` / `llm_rewrite` / `_bounded_call`（线程 join 卡 5 秒总预算）；prompt 与 MOCK 剧本放 `agent.py`；L3 不调复核、规则先于模型、失败一律更严；**60 passed**（+7）；AppTest 说教句 → `action=rewrite, rewrite=1`，干净句 `action=pass`；真实 DeepSeek 复核 1.77s + 重写 0.59s = **2.36s**（`docs/evidence/2026-11-08-s14-llm-review.md`） |
 | S15 | ⬜ | | |
 | S16 | ⬜ | | |
 | S17 | ⬜ | | |

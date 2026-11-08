@@ -1,0 +1,40 @@
+# ---- 密钥与本地配置 ----
+.env
+.env.*
+!.env.example
+.streamlit/secrets.toml
+
+# ---- Python ----
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+env/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# ---- 运行时数据（重要：绝不提交真实对话）----
+data/memory/*.json
+data/memory_backup/*.json
+data/logs/*.jsonl
+!.gitkeep
+
+# ---- 证据与产物 ----
+evidence/
+screenshots/
+*.mp4
+*.webm
+*.zip
+dist/
+*.log
+*.tmp
+
+# ---- 编辑器与系统 ----
+.vscode/
+.idea/
+Thumbs.db
+Desktop.ini
+.DS_Store
+.claude/settings.local.json

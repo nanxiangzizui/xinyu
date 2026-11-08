@@ -1,0 +1,5 @@
+# 冻结依赖：只允许这 4 个运行时包 + pytest。加任何一个先问队长（见 CLAUDE.md 2.1）
+streamlit>=1.32,<2.0
+openai>=1.30,<2.0
+python-dotenv>=1.0,<2.0
+pytest>=8.0

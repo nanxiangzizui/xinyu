@@ -1,0 +1,16 @@
+# Streamlit 基础配置。主题的细节颜色在 roles.py 的 THEMES 里用 CSS 变量覆盖，这里只定基色。
+[theme]
+base = "light"
+primaryColor = "#FF9E6B"
+backgroundColor = "#FFFDF9"
+secondaryBackgroundColor = "#FBEEE6"
+textColor = "#3D3230"
+
+[client]
+# 不要把 traceback 暴露给用户：安全红线之一（错误详情只在本地开发时手动改回 full）
+showErrorDetails = "none"
+toolbarMode = "minimal"
+
+[server]
+headless = true
+enableXsrfProtection = true

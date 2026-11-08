@@ -1,0 +1,118 @@
+---
+description: 心屿 MindIsle 编码常驻规则——安全不可降级、契约不可破坏、术语不可乱用
+globs: "**/*"
+alwaysApply: true
+---
+
+# 编码常驻规则（摘要版）
+
+详细做法看 `.claude/skills/xinyu-dev/SKILL.md`；进度与红线看 `.claude/CLAUDE.md`；本文件只做编码时的即时提醒。
+
+## 0 权威顺序
+
+用户最新指令 > 执行书 > `CLAUDE.md` > `SKILL.md` > 本文件。冲突时先停下问，不要自行"综合"。
+
+## 1 硬红线（违反即打回）
+
+1. **只升不降**：任何异常路径的风险等级只能上调。写等级判断时必须有"为什么不能降"的注释。
+2. **否决权唯一**：`guardian` 不通过就不发。禁止加权平均、多数投票、上层覆盖。
+3. **不诊断**：不写"你得了/你有…倾向/你可能是抑郁/建议服药"。
+4. **危机必给资源**：L3 回复必须含 120 / 110 / 12356 / 校心理中心之一。
+5. **不加依赖**：LangChain、向量库、FastAPI、React、数据库一律不引入。
+6. **不打印用户原文**：日志只写 `session_hash` 与结构化字段。
+
+## 2 编码风格
+
+- Python 3.11；所有公开函数带类型注解与一句中文 docstring。
+- 常量放文件顶部 `UPPER_SNAKE`：`TIMEOUT=15 / N_WINDOW=5 / COOLDOWN=3 / SUMMARY_MAX=200 / SUMMARY_EVERY=5`。
+- 单文件 ≤350 行，单函数 ≤40 行。超了先拆函数，再拆文件。
+- 注释写"为什么"，不写"是什么"。安全相关改动加 `[SAFE]` 前缀。
+- 异常：只在 8.2 的四类边界兜底，且必须记日志；内部纯函数不许空 catch。
+- 面向对象克制使用；纯函数优先（好测）。
+
+## 3 接口契约（改签名 = 全组返工）
+
+```text
+memory.py      read_memory(session_id) / write_memory(session_id, data) /
+               update_memory(session_id, user_text, reply) /
+               clear_memory(session_id) / match_lore(user_text) -> list[str]
+agent.py       call_llm(messages, temperature=0.7) -> dict
+               build_system_prompt(persona_id, memory, lore) -> str
+coordinator.py coordinator_decide(memory, user_text, level) -> dict
+guardian.py    guardian_pre_check(user_text) -> dict
+               guardian_post_check(user_text, reply, level, role) -> dict
+resources.py   pick_resources(level, emotion_tags) -> list[dict]
+```
+
+签名变更流程：改执行书附录 A → 通知全组 → 同步改 `contract_check.py` → 重跑 11/11。
+
+## 4 关键数据结构
+
+```json
+// guardian_pre_check 返回
+{"level": "L1|L2|L3", "rule_ids": ["S01"], "exempted": false, "reason": "..."}
+
+// guardian_post_check 返回
+{"pass": true, "reason": "", "fixed_reply": null, "rewrite": 0, "template_fallback": false}
+
+// coordinator_decide 返回
+{"role": "listener|guide|crisis", "reason": "crisis_shortcircuit"}
+```
+
+字段名不许改，日志与测试都依赖它们。
+
+## 5 证据分级（报告与答辩只用前三档）
+
+1. 截图 / 日志文件 / 测试输出（可复现）
+2. 代码位置 + 行号
+3. 设计文档原文
+4. 口述 / 印象（**不许进报告**）
+
+报告里每个数字都要能追到 `docs/evidence/` 下的文件。
+
+## 6 提交与交付底线
+
+- 提交前必须：`pytest -q` 全绿 + `python contract_check.py` 11/11。
+- 提交信息：`feat(guardian): 增加第三人称降级` / `fix(memory): 摘要超长截断` / `docs(report): 补测试表`。
+- 禁提交：`.env`、真实对话、`data/memory/*.json`、`data/logs/*.jsonl`、大文件。
+- 完成一个出口 → 更新 `CLAUDE.md` 2.2 状态与 4 进度。**没更新 = 没做。**
+- 周五验收不过就打回，不许"下周补"。
+
+## 7 写测试的三条
+
+- 先写用例再写实现（至少对规则与豁免如此）。
+- 一条测试只断言一件事；断言 `level` 时同时断言 `rule_ids`。
+- 测试不联网：LLM 一律 `MOCK_LLM=1` 或注入假响应。
+
+## 8 四条 AI 编码通病（本项目落地版）
+
+> 出自桌面《现有AI coding问题.txt》。要点已压缩到这里，**不要再把原文读进上下文**；每条都改写成这个项目里能一眼判定的形式。
+
+**8.1 不重复造轮子 → 先搜后写**
+- 写任何工具函数前，先 grep 一次函数名与关键词，确认没有现成实现。
+- 同一个 helper 被**第 2 个**模块需要时，才搬进 `utils.py`（≤100 行，只放时间 / 哈希 / JSON 兜底这类无业务语义的东西），搬时同步登记到 `CLAUDE.md` 结构树。
+- 禁止：`agent.py` 和 `memory.py` 各写一份 `_load_env()` / `_safe_json()` / `_now()`。
+
+**8.2 防御只加在边界 → 防该防的，别和稀泥**
+- **必须兜底的四类边界**（安全红线，删了就是事故）：LLM 调用、LLM 返回的 JSON 解析、文件读写、用户输入。
+- **不该兜底的**：模块内部纯函数、已在上游校验过的参数、自己写死的常量。这里的判空与默认值只会把 bug 变成静默错误。
+- 环境变量：缺 `LLM_API_KEY` 且 `MOCK_LLM != 1` → 启动直接报错（给人话），**不许**给空默认值，也不许悄悄转 mock。
+- 判据：删掉这个 `if`，会不会让一次真实故障变成"看起来正常"？会 → 留着并记日志；不会 → 删。
+- 兜底 ≠ 降级：解析失败按 L2 处理是**提高**等级，不是给个默认值糊过去。
+
+**8.3 不为未来抽象 → 有第二个实现才抽**
+- 六文件已经是架构。文件内部**禁止**再造 base class、接口、Factory、Strategy、注册表、事件总线。
+- 现在只有一个实现就只写一个函数；真的出现第二个再抽，成本 20 分钟，不是一座代码山。
+- 判据：把这个抽象删掉，唯一的调用方会变难读吗？不会 → 删。
+
+**8.4 保持自明性 → 像文章，不像一坨**
+- 主流程必须能从上往下读完：输入 → 判断 → 输出。超过 3 层的中间步骤，拆成有名字的小函数。
+- 每个等级判断、每次会话聚合，旁边写一句"为什么不能降"或"为什么看 5 轮"。
+- 变量说人话：`level_before_window`，不要 `tmp2` / `data2` / `res`。
+- 交付前自测：**不看注释，30 秒内能否说出这个函数在干什么**？不能 → 重写，别靠加注释糊。
+- 不许进入"AI 写、AI 解释、AI 再改"的循环：改完自己通读一遍 diff 再提交。
+
+**8.5 两类代码，两种关注点**
+- 业务流（`app.py`、`coordinator.py` 的状态流转）：关注需求与数据流，实现细节别过度设计。
+- 可复用件（`guardian` 判定、`memory` 读写、`contract_check`）：先定签名与边界再写实现，这里值得多花时间。
+

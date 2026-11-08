@@ -468,7 +468,7 @@ def slide_team(prs):
            ["P6", "测试、部署、文档、录屏", "P5"]],
           LEFT, 1.95, WIDTH, [2.1, 7.0, 2.5], row_h=0.56, head_h=0.5)
     tf = textbox(s, LEFT, 6.2, WIDTH, 0.6)
-    line(tf, "26 个可回滚步骤 · 34 次提交 · 4 个版本节点（v0.1 / v0.2 / v0.3 / v1.0）· 结对互看",
+    line(tf, "26 个可回滚步骤 · 30+ 次提交 · 4 个版本节点（v0.1 / v0.2 / v0.3 / v1.0）· 结对互看",
          size=BODY, color=MUTED, first=True)
 
 

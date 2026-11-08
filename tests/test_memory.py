@@ -62,15 +62,27 @@ def test_atomic_write_keeps_valid_json_and_backup(mem):
 
 
 def test_corrupt_main_recovers_from_backup(mem):
-    """5. 正文坏、备份好：读回备份内容，并把主文件修好（好备份不许被污染）。"""
+    """5. 正文坏、备份好：读回备份内容、修好主文件，且**再来一轮写入**也不许把坏文件写进备份。
+
+    回归点（2026-11-08）：修好主文件后，下一轮 write_memory 会执行 copy2(主文件, .bak)；
+    如果当时没修主文件，坏内容会盖掉唯一的好备份，用户记忆两份全废。
+    """
     mem.write_memory("u4", {"preferred_tone": "gentle"})
     mem.write_memory("u4", {"preferred_tone": "direct"})
     (mem.DATA_DIR / "u4.json").write_text("{broken", encoding="utf-8")
-    assert mem.read_memory("u4")["preferred_tone"] == "gentle"
+
+    recovered = mem.read_memory("u4")
+    assert recovered["preferred_tone"] == "gentle"
     repaired = json.loads((mem.DATA_DIR / "u4.json").read_text(encoding="utf-8"))
-    assert repaired["preferred_tone"] == "gentle"          # 主文件已自愈
+    assert repaired == recovered                           # 主文件已自愈
     bak = json.loads((mem.DATA_DIR / "u4.json.bak").read_text(encoding="utf-8"))
     assert bak["preferred_tone"] == "gentle"               # 好备份没被坏文件覆盖
+
+    mem.write_memory("u4", recovered)                      # 模拟下一轮对话落盘
+    bak2 = json.loads((mem.DATA_DIR / "u4.json.bak").read_text(encoding="utf-8"))
+    assert bak2 == repaired                                # 备份是合法旧版，不是 "{broken"
+    now = json.loads((mem.DATA_DIR / "u4.json").read_text(encoding="utf-8"))
+    assert now["preferred_tone"] == "gentle"
 
 
 def test_both_corrupt_resets_and_rewrites(mem):

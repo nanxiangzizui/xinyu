@@ -53,18 +53,18 @@ python -c "import roles; print(len(roles.RULES))"   # 现在是 0
 ```python
 RULES: list[dict] = [
  # ---- X 组：豁免 / 降级（必须先跑）----
- {"rule_id": "X01", "group": "X", "pattern": r"(不|没)想死|不会自杀|没想过自杀", "intensity": "-", "level": "L1", "action": "log_only", "exempt": "denial", "why": "否定/反转：保护性表达"},
+ {"rule_id": "X01", "group": "X", "pattern": r"((不|没)想死|不会自杀|(没有|没|从没|从来没|从未|并未)想过?(要)?(死|自杀))", "intensity": "-", "level": "L1", "action": "log_only", "exempt": "denial", "why": "否定/反转：保护性表达"},
  {"rule_id": "X02", "group": "X", "pattern": r"(如果|假如|要是).{0,15}(想死|自杀|不想活)", "intensity": "-", "level": "L1", "action": "log_only", "exempt": "hypothetical", "why": "假设/求助他人"},
- {"rule_id": "X03", "group": "X", "pattern": r"(电影|剧|小说|歌词|主角|游戏|书里).{0,20}(自杀|死了|想死)", "intensity": "-", "level": "L1", "action": "log_only", "exempt": "quotation", "why": "引用/创作"},
+ {"rule_id": "X03", "group": "X", "pattern": r"(电影|剧|小说|歌词|主角|游戏|书里|论文|作业|课程|报道|新闻|研究|案例|课件|考题|题目|作文).{0,20}(自杀|死了|想死)|(自杀|死了|想死).{0,6}(论文|作业|课程|报道|新闻|研究|案例|课件|考题|题目|作文)", "intensity": "-", "level": "L1", "action": "log_only", "exempt": "quotation", "why": "引用/创作"},
  {"rule_id": "X04", "group": "X", "pattern": r"(笑|累|饿|困|烦|气|吓|热|冷)死(了|我)", "intensity": "-", "level": "L1", "action": "log_only", "exempt": "hyperbole", "why": "夸张/补语化"},
  {"rule_id": "X05", "group": "X", "pattern": r"(他|她|朋友|室友|同学).{0,12}(想死|自杀|不想活)", "intensity": "-", "level": "L2", "action": "floor_l2", "exempt": "third_person", "why": "第三人称：不豁免，降 L2"},
  # ---- H 组：高危，短路 ----
  {"rule_id": "H01", "group": "H", "pattern": r"(不想活|活不下去|想死|去死|死了算了)", "intensity": "强", "level": "L3", "action": "short_circuit", "exempt": "", "why": "自杀意念直述"},
  {"rule_id": "H02", "group": "H", "pattern": r"(自杀|轻生|了结自己|结束生命)", "intensity": "强", "level": "L3", "action": "short_circuit", "exempt": "", "why": "自杀相关表述"},
  {"rule_id": "H03", "group": "H", "pattern": r"(自残|割腕|划手腕|伤害自己)", "intensity": "强", "level": "L3", "action": "short_circuit", "exempt": "", "why": "自伤行为"},
- {"rule_id": "H04", "group": "H", "pattern": r"(跳楼|跳桥|上吊|从楼上)", "intensity": "强", "level": "L3", "action": "short_circuit", "exempt": "", "why": "具体手段"},
+ {"rule_id": "H04", "group": "H", "pattern": r"(跳楼|跳桥|跳河|跳湖|上吊|从楼上|(天台|楼顶|栏杆|窗台).{0,6}(跳|往下)|(想|要|准备|打算|干脆).{0,4}跳(下去|下来)(?!.{0,6}(游泳|洗澡|玩水)))", "intensity": "强", "level": "L3", "action": "short_circuit", "exempt": "", "why": "具体手段"},
  {"rule_id": "H05", "group": "H", "pattern": r"(遗书|最后一条|交代后事|世界再见)", "intensity": "强", "level": "L3", "action": "short_circuit", "exempt": "", "why": "告别/后事"},
- {"rule_id": "H06", "group": "H", "pattern": r"((一把|整瓶|一瓶|几瓶|很多).{0,4}药|吞药|吃药自杀)", "intensity": "强", "level": "L3", "action": "short_circuit", "exempt": "", "why": "药物准备"},
+ {"rule_id": "H06", "group": "H", "pattern": r"((一把|整瓶|一瓶|几瓶|很多|全).{0,4}药|吞药|吃药自杀|安眠药.{0,8}(吃|吞|喝|全)|(买|囤|攒|存).{0,8}安眠药)", "intensity": "强", "level": "L3", "action": "short_circuit", "exempt": "", "why": "药物准备"},
  {"rule_id": "H07", "group": "H", "pattern": r"(今晚|明天|一会儿).{0,6}(结束|动手|了断|就走了)", "intensity": "强", "level": "L3", "action": "short_circuit", "exempt": "", "why": "时间计划"},
  {"rule_id": "H08", "group": "H", "pattern": r"(想杀|弄死|捅了|报复(他|她))", "intensity": "强", "level": "L3", "action": "short_circuit", "exempt": "", "why": "他伤意图"},
  {"rule_id": "H09", "group": "H", "pattern": r"(撑不下去|不想再撑|不想继续了|熬不下去)", "intensity": "强", "level": "L3", "action": "short_circuit", "exempt": "", "why": "彻底耗竭"},
@@ -112,6 +112,11 @@ def validate_rules() -> list[str]:
         errors.append("顺序错：必须 X → H → W")
     return errors
 ```
+
+> **2026-11-08 实测修正（两处，已写进 `roles.py`）**
+> 1. 上面的 `sorted()` 检查对 X/H/W 会误报：字母序是 `H < W < X`，正确的 X→H→W 表会被判成“顺序错”。实际实现改用显式序号 `GROUP_ORDER = {"X": 0, "H": 1, "W": 2}`，比较 `ranks != sorted(ranks)`。
+> 2. `COMPILED = {…re.compile…}` 直接在模块级预编译坏正则会令 `import roles` 崩溃，`validate_rules()` 来不及报“哪条错”。实际实现改为 `_compile_rules()` 容错构建：坏正则不进 `COMPILED`，由 `validate_rules()` 报具体 `rule_id` 与原因。
+> 证据：`docs/evidence/2026-11-09-s08-rules.md` §4、§6。
 
 ### 5.4 接进 contract_check.py
 

@@ -57,7 +57,15 @@ def main() -> int:
     for k in const_bad:
         print(f"FAIL roles.{k}: 期望 {CONSTS[k]} 实际 {getattr(roles, k, '缺失')!r}")
     print(f"{len(CONSTS) - len(const_bad)}/{len(CONSTS)} constants OK")
-    return 1 if bad or const_bad else 0
+
+    rule_errors = roles.validate_rules()
+    if rule_errors:
+        print("RULES FAIL:")
+        for err in rule_errors:
+            print(" -", err)
+    else:
+        print(f"{len(roles.RULES)}/{roles.N_RULES} rules OK")
+    return 1 if bad or const_bad or rule_errors else 0
 
 
 if __name__ == "__main__":

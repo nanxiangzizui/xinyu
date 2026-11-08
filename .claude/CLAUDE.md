@@ -1,7 +1,7 @@
 # 心屿 MindIsle · 项目状态与规则
 
 > **本文件是唯一状态源。** 其他文件（SKILL.md、README、.mdc）只讲方法、格式和摘要，状态一律以这里为准。
-> 最后更新：2026-11-08（S18 记忆面板：82 passed；W2 两项盲读仍待做）
+> 最后更新：2026-11-08（S19 三套主题：89 passed；W2 两项盲读仍待做）
 
 ## 0. 三分钟了解
 
@@ -10,7 +10,7 @@
 - 形态：Streamlit 单页聊天 + 侧栏状态 + 记忆面板 + 资源卡
 - 交付：4 周出一个可演示版本 + 3 天材料期，6 人小队
 - 尺度：课程实践作业。安全设计要真实，疗效一句不吹
-- 规模：12 个 py 文件（约 1700 行）+ 82 条测试（考核要求 48，目标 97）
+- 规模：13 个 py 文件（约 1800 行）+ 89 条测试（考核要求 48，目标 97）
 - 交什么：**.docx 文档**（含 AI 使用附录）+ **17 页 PPT** + **300 秒录屏视频** + 现场三幕。代码不单独计分
 
 ## 1. 权威顺序（冲突时从上往下）
@@ -96,19 +96,19 @@
 ├─ .streamlit/config.toml             基色 + 关闭错误详情
 ├─ app.py            Streamlit 页面与交互
 ├─ agent.py          call_llm / build_system_prompt / MOCK / 重试
-├─ roles.py          5 人设卡 + 3 主题 + RULES 20 条
+├─ roles.py          5 人设卡 + RULES 20 条
 ├─ coordinator.py    三角色状态机 + 会话聚合 + 只升不降
 ├─ guardian.py       规则 → 豁免 → 分级 → 复核 → 短路 / 重写 / 复检
 ├─ memory.py         白名单读写 + 摘要节流 + 备份 + 清空 + match_lore
 ├─ resources.py      情绪 → 资源卡（纯函数）
 ├─ logger.py         结构化日志（9 字段，不写原文）
 ├─ panel.py          记忆面板（8 字段只读 / 两字段编辑 / 导出 / 二次确认清空）
-├─ theme.py          三套配色（sakura / matcha / sunset）
+├─ theme.py          三套配色 + CSS 变量注入（S19 已完成）
 ├─ contract_check.py 11 签名 + 5 常量 + 20 条规则校验
 ├─ metrics.py        四指标脚本（只读测试集）
 ├─ utils.py          按需创建：第 2 次重复才搬进来（≤100 行）
 ├─ tests/            test_memory / test_agent / test_roles / test_log /
-│                    test_guardian / test_flow（目前 82 条，目标 97 条）
+│                    test_guardian / test_flow / test_theme（目前 89 条，目标 97 条）
 ├─ step/             26 个分步执行文件 + README（怎么做看这里）
 ├─ data/memory/      memory.json（不进仓库）
 ├─ data/logs/        YYYY-MM-DD.jsonl（不进仓库）
@@ -169,7 +169,9 @@
 
 - ✅ **S18 记忆面板（2026-11-08）**：新建 `panel.py` 118 行（标签映射 + `panel_view` / `export_payload` / `render_panel`），`app.py` 333 → 314 行（旧 expander 换 `render_panel(sid, _clear)`），`memory.py` 295 → 300 行（公开 `scrub`）；8 字段中文标签只读、仅 `preferred_tone` 与 `coping_preferences` 可改、展示与导出全过 `scrub`、导出白名单 9 键、清空二次确认。**82 passed（+2）**，contract **11/11 + 5/5 + 20/20**；探针：8 标签 / 改偏好落盘为枚举码 / 导出无原句 / 确认后清除换新 sid。六处口径修正：①`app.py` 破 350 行 → 抽 `panel.py`（11 契约不变，`on_clear` 注入避免循环导入）；②`st.write(list)` 显示成一坨 → 逐字段转人话；③步骤用中文语气值、落盘必须枚举码 → `format_func` 显示中文；④导出含 `last_updated` 但面板不展示；⑤清空后的 `session_state` 由既有 `_clear` 负责，面板 key 带 sid；⑥步骤写 "61 passed" 是旧基数。证据 `docs/evidence/2026-11-08-s18-panel.md`。**行数口径**：以 python `splitlines()` 为准（`guardian.py` 305 / `roles.py` 277 / `memory.py` 300 / `panel.py` 118，均 ≤350）；早期条目里的行数由 PowerShell 计数、偏低，只作增量参考。
 
-**下一步（S19）**：三套主题切换（`sakura / matcha / sunset`），不改布局与安全链路；随后 S20 lore、S21 验收 v0.3。
+- ✅ **S19 三套主题（2026-11-08）**：新建 `theme.py` 63 行（`THEMES` 三套五变量 / `theme_css` / `inject_theme` / `theme_picker` / `contrast_ratio`），`app.py` 314 → 318 行（`main` 顶部注入，侧栏第一项是配色单选），`roles.py` 275 行（删掉 S02 的 `THEMES` 占位，避免双份漂移）；只改颜色与 16px 圆角，不动布局/字号/安全链路。`tests/test_theme.py` 7 条，**89 passed**，contract **11/11 + 5/5 + 20/20**。三套正文对比度 11.32–11.85（text/bg）、10.22–10.88（text/surface），均 ≥4.5；真实页面截图三张（`2026-11-08-theme-*.png`），抹茶主题下 `.stApp` computed bg 实测变绿。口径修正：步骤 §6 的 "62 passed" 是旧基数；侧栏与输入框保持 `.streamlit` 基色是遵守"选择器不许过宽"，不是漏改。证据 `docs/evidence/2026-11-08-s19-themes.md`
+
+**下一步（S20）**：迷你 Lorebook（`match_lore` 已有骨架，按 `step/S20-lorebook.md` 核口径），随后 S21 验收 v0.3。
 
 - ✅ **规则缺口补丁 + 复核四项收尾（2026-11-08）**：`roles.py` 只改 4 条正则（X01 否定句补"没有想过/从没想过要"、X03 补"论文/作业/报道"反向分支、H04 补"天台 + 跳下去"并负向断言排除游泳、H06 补"买/囤 + 安眠药"）；`tests/test_guardian.py` +5 条 `GAP_CASES`（D-29~D-32 + 一条护栏），先红后绿；**53 passed**，contract **11/11 + 5/5 + 20/20**。执行书同步升 **v1.2**（附录 B 四条正则 + 变更记录 + 新增附录 D-5，注明不计入分母）。四处决策的处理：①证据日期**不改名**，13 个证据文件头加"实际生成于 2026-11-08"；②规则按上一条补；③S08–S13 拆 5 个提交 + `v0.2`；④执行书 :1128 的"39 passed"旧基数不动。证据 `docs/evidence/2026-11-08-rule-gap-patch.md`
 

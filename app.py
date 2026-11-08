@@ -51,6 +51,7 @@ from memory import (clear_memory, compress_summary, mark_crisis_summary,  # noqa
 from panel import LEVEL_LABELS, REASON_LABELS, ROLE_LABELS, render_panel  # noqa: E402
 from resources import pick_resources                          # noqa: E402
 from roles import COOLDOWN, N_WINDOW                          # noqa: E402
+from theme import inject_theme, theme_picker                  # noqa: E402
 
 logger = logging.getLogger(__name__)
 
@@ -273,6 +274,9 @@ def main() -> None:
     st.title("心屿")
     st.caption(DISCLAIMER)                         # 第一屏常驻，不折叠
     _config_gate()
+
+    # 主题注入必须早于聊天区渲染；选择器是侧栏第一项，_sidebar 的内容排在它后面。
+    inject_theme(theme_picker())
 
     sid = get_session_id()
     st.session_state.setdefault("messages", [])

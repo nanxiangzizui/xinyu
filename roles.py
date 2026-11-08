@@ -273,5 +273,3 @@ def validate_rules() -> list[str]:
         errors.append("顺序错：必须 X → H → W")
     return errors
 
-
-THEMES: dict = {}           # S19 填 3 套

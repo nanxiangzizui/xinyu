@@ -111,9 +111,11 @@
 - ✅ 仓库已初始化（`git init`，分支 `main`，首次提交 `ebf10c4`）；**代码 0 行**
 - ✅ 文档审计（2026-11-09）：规则引擎实机验证 34/34（28 条 D + 6 条 C）、日常闲聊误拦 0/20；执行书升 **v1.1**；证据 `docs/evidence/audit-2026-11-09.md`
 - ✅ 危机资源电话已填：学校心理中心 0571-87713518（2026-11-09 队内补录；**提交前再拨一次确认**，接通即算核验）
+- ✅ Python 版本已定：本机装 **Python 3.11.9**（winget，`py -3.11` 可用；裸 `python` 仍是 Anaconda 3.14，一律不用）；`.venv` 已建好并**验证可重建**（删掉重装成功），实测 `streamlit 1.67.0 / openai 1.109.1 / python-dotenv 1.2.4 / pytest 9.2.0`
+- ✅ 本机风险已排除：`streamlit hello` 在中文+空格路径下 HTTP 200，不必搬项目目录；`requirements.txt` 中文注释曾触发 GBK `UnicodeDecodeError`，已改纯 ASCII 并立为红线
 - ⬜ 6 人是否都会 Python 未确认（W1 周一环境检查后回填）
 
-**下一步（W1 周一）**：按 `step/S01-env-setup.md` 起 `.venv`（**先解决 Python 版本**：本机现有 3.14，S01 要求 3.11）→ 建六文件空壳 → 跑通 `contract_check.py` 11/11，再做功能。
+**下一步（W1 周一）**：`.venv` 已就绪 → 按 `step/S02-contract-first.md` 建六文件空壳 + `contract_check.py` 跑出 11/11 → 再按 S03/S04 填 memory / agent。
 
 ## 5. 关键约束与红线
 

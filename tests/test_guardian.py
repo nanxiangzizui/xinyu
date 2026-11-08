@@ -17,42 +17,65 @@ def _offline(monkeypatch):
     """本文件整体离线跑 MOCK：复核/重写都走 agent 的确定性剧本，不联网。"""
     monkeypatch.setenv("MOCK_LLM", "1")
 
-CASES = [
-    ("我不想死", "L1", "X01", True),
-    ("如果我考不好就想死", "L1", "X02", True),
-    ("电影里的主角自杀了", "L1", "X03", True),
-    ("今天累死了", "L1", "X04", True),
-    ("我室友说他不想活了", "L2", "X05", False),
-    ("累死了，不想活了", "L3", "H01", False),   # 回归：豁免不许跨小句
+# S22：28 条考核口径规则用例（D-01 ~ D-28），编号直接当 pytest id 用。
+# 断言三件事：等级等值（==）、命中集合等值（set ==）、豁免标记。不能只断等级——
+# 等级对了但命错规则，说明某条正则悄悄漂移，而日志/召回统计都会跟着错。
+# 多命中只在这三处，都是规则本身的设计，不是断言放松：
+#   D-16 / D-17：夸张词在小句 A、高危词在小句 B，豁免只覆盖自己那一句 → X04 保留 + H01 抬 L3；
+#   D-28：第三人称降级（X05 → L2 地板）与本句弱信号 W02 同时命中，等级仍是 L2。
+D_CASES = [
+    # H 组各一条（D-01 ~ D-10）：判成 L3 才可能短路发资源卡，漏一条 = 危机话术发不出去。
+    ("D-01", "我不想活了", "L3", {"H01"}, False),
+    ("D-02", "我想自杀", "L3", {"H02"}, False),
+    ("D-03", "我在割腕", "L3", {"H03"}, False),
+    ("D-04", "想跳楼", "L3", {"H04"}, False),
+    ("D-05", "我写好遗书了", "L3", {"H05"}, False),
+    ("D-06", "我攒了一瓶药", "L3", {"H06"}, False),
+    ("D-07", "今晚就结束", "L3", {"H07"}, False),
+    ("D-08", "我想杀了他", "L3", {"H08"}, False),
+    ("D-09", "我撑不下去了", "L3", {"H09"}, False),
+    ("D-10", "活着没意义", "L3", {"H10"}, False),
+    # W 组各一条（D-11 ~ D-15）：弱信号只抬等级到 L2，不许自己短路。
+    ("D-11", "好累啊，什么都不想做", "L1", {"W01"}, False),
+    ("D-12", "什么都没意思", "L2", {"W02"}, False),
+    ("D-13", "我觉得自己挺没用的", "L2", {"W03"}, False),
+    ("D-14", "连续一周失眠", "L1", {"W04"}, False),
+    ("D-15", "有时候想消失一下", "L2", {"W05"}, False),
+    # 边界与组合（D-16 ~ D-20）。
+    ("D-16", "累死了，不想活了", "L3", {"X04", "H01"}, False),   # 豁免不许跨小句
+    ("D-17", "笑死了，我今天想死", "L3", {"X04", "H01"}, False), # 同上，换一个夸张词
+    ("D-18", "不想死但是不想活", "L3", {"H01"}, False),          # 否定式绕过：句子后半句是真信号
+    ("D-19", "他说他想自杀", "L2", {"X05"}, False),              # 第三人称降级为 L2
+    ("D-20", "你能听我说说吗", "L1", set(), False),              # 无命中：日常求助词不判危
+    # X 组各一条（D-21 ~ D-25）：豁免类。
+    ("D-21", "我不想死", "L1", {"X01"}, True),
+    ("D-22", "如果我考不好就想死", "L1", {"X02"}, True),
+    ("D-23", "电影里的主角自杀了", "L1", {"X03"}, True),
+    ("D-24", "今天累死了", "L1", {"X04"}, True),
+    ("D-25", "我室友说他不想活了", "L2", {"X05"}, False),
+    # 输入边界（D-26 ~ D-28）。
+    ("D-26", "我" + "今天天气不错" * 500, "L1", set(), False),   # 1500 字：不崩、不误判
+    ("D-27", "我不想活了！！", "L3", {"H01"}, False),            # 全角标点切句后仍命中
+    ("D-28", "我室友说他不想活了，我也觉得没意思", "L2", {"X05", "W02"}, False),
 ]
 
 
-@pytest.mark.parametrize(("text", "level", "rule_id", "exempted"), CASES)
-def test_pre_check_cases(text, level, rule_id, exempted):
-    """等级、命中规则、豁免标记同时断言：只看等级会漏掉“判对等级但命错规则”。"""
+@pytest.mark.parametrize(("case_id", "text", "level", "rule_ids", "exempted"),
+                         D_CASES, ids=[case[0] for case in D_CASES])
+def test_d_cases_28(case_id, text, level, rule_ids, exempted):
+    """28 条 D 用例逐条编号跑：等级等值 + 命中集合等值 + 豁免标记。"""
     result = guardian_pre_check(text)
-    assert result["level"] == level, (text, result)
-    assert rule_id in result["rule_ids"], (text, result)
-    assert result["exempted"] is exempted, (text, result)
-    # rule_ids 去重且保序：重复会让日志与指标统计翻倍。
-    assert len(result["rule_ids"]) == len(set(result["rule_ids"])), result
+    assert result["level"] == level, (case_id, text, result)
+    assert set(result["rule_ids"]) == rule_ids, (case_id, text, result)
+    assert result["exempted"] is exempted, (case_id, text, result)
+    # 去重：重复命中会让日志与召回/误拦统计翻倍。
+    assert len(result["rule_ids"]) == len(set(result["rule_ids"])), (case_id, result)
 
 
-# D-01 ~ D-10：十条 H 规则各一条。S10 起 L3 一律短路，判错等级 = 危机回复发不出去。
-H_CASES = [
-    ("我不想活了", "H01"), ("我想自杀", "H02"), ("我在割腕", "H03"),
-    ("想跳楼", "H04"), ("我写好遗书了", "H05"), ("我攒了一瓶药", "H06"),
-    ("今晚就结束", "H07"), ("我想杀了他", "H08"), ("我撑不下去了", "H09"),
-    ("活着没意义", "H10"),
-]
-
-
-@pytest.mark.parametrize(("text", "rule_id"), H_CASES)
-def test_high_risk_hits_l3(text, rule_id):
-    """每条断言两件事：等级必须是 L3，且命中的是预期的那条规则。"""
-    result = guardian_pre_check(text)
-    assert result["level"] == "L3", (text, result)
-    assert rule_id in result["rule_ids"], (text, result)
+def test_d_case_count_is_28():
+    """28 条就是 28 条：有人删用例凑绿，这条先红。"""
+    assert len(D_CASES) == 28
+    assert [case[0] for case in D_CASES] == [f"D-{i:02d}" for i in range(1, 29)]
 
 # S13：回复侧复核。四条规格用例 + 空回复一条（§5.1 的 empty_reply 也要有用例）。
 from guardian import CRISIS_REPLY, SAFE_FALLBACK, guardian_post_check

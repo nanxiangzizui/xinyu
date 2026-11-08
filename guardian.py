@@ -1,13 +1,183 @@
 """guardian.py — 安全审查层：规则 → 豁免 → 分级 → 复核，一票否决。"""
 from __future__ import annotations
 
+import re
+
+from roles import COMPILED, RULES
+
+# 切小句：中英文标点都要覆盖。豁免只在一个小句内生效，绝不跨句。
+CLAUSE_SPLIT = re.compile(r"[，。！？；、,.!?;~～\n\r]+")
+
+# [SAFE] 这些词只要出现在 X 命中范围之外，就拒绝豁免——它们是“真的要出事”的信号。
+HARD_WORDS = ("不想活", "活不下去", "自杀", "自残", "割腕", "遗书", "撑不下去", "熬不下去")
+
+RANK = {"L1": 1, "L2": 2, "L3": 3}
+
+# [SAFE] L3 一律发这段常量，不许模型生成、改写或让人设插手：
+# 危机时刻的自由发挥就是风险本身。文案 ≤140 字，必须含 12356 与校心理中心电话。
+# 换行用 \n，不用 markdown 列表符号（Streamlit 会渲染成列表）。
+CRISIS_REPLY = (
+    "听到你这么说，我很在意你现在的安全。\n\n"
+    "先做一件事：找一个此刻能陪着你的人，或打 12356（24 小时热线）。\n"
+    "情况紧急请打 110 或 120。\n"
+    "校心理中心 0571-87713518（工作日）。\n\n"
+    "我不问你发生了什么，也不劝你什么。你想说的时候，我在这儿。"
+)
+
+
+def split_clauses(text: str) -> list[str]:
+    """按中英文标点切成小句；丢掉空白句。"""
+    return [c.strip() for c in CLAUSE_SPLIT.split(text or "") if c.strip()]
+
+
+def _hits(clause: str, group: str) -> list[dict]:
+    """返回该小句命中的某个组的规则（按 RULES 里的顺序）。"""
+    out = []
+    for rule in RULES:
+        if rule["group"] != group:
+            continue
+        rx = COMPILED.get(rule["rule_id"])
+        if rx is None:                      # 坏正则已在 S08 校验拦截；运行时跳过不崩
+            continue
+        match = rx.search(clause)
+        if match:
+            out.append({"rule": rule, "span": (match.start(), match.end())})
+    return out
+
+
+def _covered(clause: str, hard: str, span: tuple[int, int]) -> bool:
+    """硬词是否落在豁免命中范围内（在范围内才允许被豁免）。"""
+    for match in re.finditer(re.escape(hard), clause):
+        if not (span[0] <= match.start() and match.end() <= span[1]):
+            return False
+    return True
+
+
+def _dedup(items: list[str]) -> list[str]:
+    """去重且保序：dict.fromkeys 保留首次出现的位置。"""
+    return list(dict.fromkeys(items))
+
+
+def _raise(current: str, new: str) -> str:
+    """等级只升不降：只有 new 更高才替换，否则保持 current。"""
+    return new if RANK[new] > RANK[current] else current
+
+
+def _exemption(clause: str, x_hits: list[dict]) -> tuple[bool, dict | None]:
+    """X 组豁免判定：硬词只要有一个落在豁免 span 外，就当没豁免。"""
+    if not x_hits:
+        return False, None
+    hit = x_hits[0]
+    if not all(_covered(clause, h, hit["span"]) for h in HARD_WORDS if h in clause):
+        return False, None
+    return True, hit
+
+
+def _judge_clause(clause: str) -> dict:
+    """单个小句：X 豁免 → H → W；返回本句等级 / 命中 / 是否已被豁免。"""
+    ids: list[str] = []
+    reasons: list[str] = []
+    level = "L1"
+
+    exempt, x_hit = _exemption(clause, _hits(clause, "X"))
+    if exempt:
+        ids.append(x_hit["rule"]["rule_id"])
+        reasons.append(x_hit["rule"]["why"])
+        if x_hit["rule"]["action"] == "floor_l2":
+            # X05 是降级不是豁免：命中要记录，等级抬到 L2。
+            return {"level": _raise(level, "L2"), "ids": ids, "reasons": reasons,
+                    "exempt_hit": False, "has_hit": True}
+        return {"level": level, "ids": ids, "reasons": reasons,
+                "exempt_hit": True, "has_hit": False}
+
+    for group in ("H", "W"):
+        hits = _hits(clause, group)
+        if not hits:
+            continue
+        for hit in hits:
+            ids.append(hit["rule"]["rule_id"])
+            reasons.append(hit["rule"]["why"])
+            # 等级只升不降：H 组命中一律 L3；W 组按规则自身的 level 抬地板。
+            level = _raise(level, hit["rule"]["level"])
+        return {"level": level, "ids": ids, "reasons": reasons,
+                "exempt_hit": False, "has_hit": True}
+    return {"level": level, "ids": ids, "reasons": reasons,
+            "exempt_hit": False, "has_hit": False}
+
+
+def scan(user_text: str) -> dict:
+    """小句级扫描：X 豁免只在本小句内生效，H 命中即 L3，W 按规则抬地板。"""
+    level = "L1"
+    ids: list[str] = []
+    reasons: list[str] = []
+    any_exempt = False
+    all_hits_exempt = True
+
+    for clause in split_clauses(user_text):
+        part = _judge_clause(clause)
+        level = _raise(level, part["level"])
+        ids += part["ids"]
+        reasons += part["reasons"]
+        any_exempt = any_exempt or part["exempt_hit"]
+        all_hits_exempt = all_hits_exempt and not part["has_hit"]
+
+    return {
+        "level": level,
+        "rule_ids": _dedup(ids),
+        # 只有“整段唯一的命中都被豁免”才算 exempted：W 命中过就不算。
+        "exempted": any_exempt and all_hits_exempt and level == "L1",
+        "reason": "；".join(_dedup(reasons)) or "未命中规则",
+    }
+
 
 def guardian_pre_check(user_text: str) -> dict:
-    """S02 空壳：一律放行 L1。S10 实现规则+短路。"""
-    return {"level": "L1", "rule_ids": [], "exempted": False, "reason": "stub"}
+    """安全检查入口：只判等级，不生成回复。纯函数。"""
+    return scan(user_text)
+
+
+# [SAFE] 回复侧检查：诊断词、L3 缺资源、空回复。复检必须调用同一个函数，不许放水。
+DIAG = re.compile(r"(你(得|患)了|你有.{0,6}倾向|你是.{0,4}症|抑郁症|焦虑症|建议服药|吃药)", re.I)
+RESOURCE = re.compile(r"(12356|110|120|校心理中心)", re.I)
+
+# [SAFE] 兜底模板：crisis 直接复用 CRISIS_REPLY。
+# 兜底与短路必须同一句话，否则同一个危机在两条路径上给出两种说法，口径会漂。
+SAFE_FALLBACK = {
+    "listener": "我在。你愿意说多少都可以，不想说也没关系。",
+    "guide": "我不急着给你答案。你更想先理清哪一件事？",
+    "crisis": CRISIS_REPLY,
+}
+
+
+def _violations(reply: str, level: str) -> list[str]:
+    """检查回复本身的问题；返回原因列表。原回复与重写都过这一关。"""
+    bad = []
+    if not (reply or "").strip():
+        bad.append("empty_reply")
+    if DIAG.search(reply or ""):
+        bad.append("diagnosis_language")
+    if level == "L3" and not RESOURCE.search(reply or ""):
+        bad.append("crisis_missing_resource")
+    return bad
 
 
 def guardian_post_check(user_text: str, reply: str, level: str, role: str, rewriter=None) -> dict:
-    """S02 空壳：一律通过。S13 实现复核+重写。"""
-    return {"pass": True, "reason": "", "fixed_reply": None,
-            "rewrite": 0, "template_fallback": False}
+    """五步：复查 → 重写 1 次 → 复检 → 记账 → 兜底。不通过就不发。
+
+    pass=False 的含义是“原回复不可用”，不是“不发消息”：永远要发一句安全的话，
+    所以三段返回都带 fixed_reply 或可用的原文。
+    """
+    bad = _violations(reply, level)
+    if not bad:
+        return {"pass": True, "reason": "", "fixed_reply": None,
+                "rewrite": 0, "template_fallback": False}
+
+    # 重写只此一次：循环重试会把“模型反复犯规”变成“跑到超时”。
+    fixed = rewriter(user_text, reply, bad, role) if rewriter else None
+    if fixed and not _violations(fixed, level):
+        return {"pass": True, "reason": ",".join(bad), "fixed_reply": fixed,
+                "rewrite": 1, "template_fallback": False}
+
+    # role 来自 coordinator（内部），仍取不到就退 listener：兜底句永远不能缺。
+    return {"pass": False, "reason": ",".join(bad),
+            "fixed_reply": SAFE_FALLBACK.get(role) or SAFE_FALLBACK["listener"],
+            "rewrite": 1 if fixed else 0, "template_fallback": True}

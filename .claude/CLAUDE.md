@@ -1,7 +1,7 @@
 # 心屿 MindIsle · 项目状态与规则
 
 > **本文件是唯一状态源。** 其他文件（SKILL.md、README、.mdc）只讲方法、格式和摘要，状态一律以这里为准。
-> 最后更新：2026-11-08（S20 迷你 Lorebook：94 passed；W2 两项盲读仍待做）
+> 最后更新：2026-11-08（S21 集成验收 12/12 + v0.3：95 passed；W2 两项盲读仍待做）
 
 ## 0. 三分钟了解
 
@@ -10,7 +10,7 @@
 - 形态：Streamlit 单页聊天 + 侧栏状态 + 记忆面板 + 资源卡
 - 交付：4 周出一个可演示版本 + 3 天材料期，6 人小队
 - 尺度：课程实践作业。安全设计要真实，疗效一句不吹
-- 规模：13 个 py 文件（约 1800 行）+ 94 条测试（考核要求 48，目标 97）
+- 规模：13 个 py 文件（约 1800 行）+ 95 条测试（考核要求 48，目标 97）
 - 交什么：**.docx 文档**（含 AI 使用附录）+ **17 页 PPT** + **300 秒录屏视频** + 现场三幕。代码不单独计分
 
 ## 1. 权威顺序（冲突时从上往下）
@@ -48,7 +48,7 @@
 | S0 | 计划期 | ✅ | 全文 | 五份计划书整合 + 执行书 v1.0 | 执行书冻结，范围不再讨论 |
 | S1 | W1 | ✅ | §7.1 | 仓库 / 骨架 / `agent.py` / `memory.py` / `app.py` / 部署 | 在线可打开 + 10 轮不崩 + `contract_check` 11/11 + `v0.1` |
 | S2 | W2 | 🟨 | §7.2、§4.3、§4.6、§4.7 | 五套人设 + 状态机 + `guardian_pre_check` | C-09 切 crisis；C-01 不误触；日志无原文 + `v0.2` |
-| S3 | W3 | 🟨 | §7.3、§4.8、§5 | `guardian_post_check` + 聚合 + 记忆面板 + 主题 + lorebook | 重写日志 `rewrite=1`；风险地板不掉；3 主题不错位 + `v0.3` |
+| S3 | W3 | ✅ | §7.3、§4.8、§5 | `guardian_post_check` + 聚合 + 记忆面板 + 主题 + lorebook | 重写日志 `rewrite=1`；风险地板不掉；3 主题不错位 + `v0.3` |
 | S4 | W4 | ⬜ | §7.4、§8 | 97 条测试（考核 48）+ 冻结 + 录屏 | 指标达标 + 测试表齐 + `v1.0` |
 | S5 | +3 天 | ⬜ | §7.5、§12 | 报告 / PPT / 彩排 / 提交清单 | 逐项打勾，三份备份 |
 
@@ -108,7 +108,7 @@
 ├─ metrics.py        四指标脚本（只读测试集）
 ├─ utils.py          按需创建：第 2 次重复才搬进来（≤100 行）
 ├─ tests/            test_memory / test_agent / test_roles / test_log /
-│                    test_guardian / test_flow / test_theme（目前 94 条，目标 97 条）
+│                    test_guardian / test_flow / test_theme（目前 95 条，目标 97 条）
 ├─ step/             26 个分步执行文件 + README（怎么做看这里）
 ├─ data/memory/      memory.json（不进仓库）
 ├─ data/logs/        YYYY-MM-DD.jsonl（不进仓库）
@@ -173,7 +173,9 @@
 
 - ✅ **S20 迷你 Lorebook（2026-11-08）**：`memory.py` 300 → 338 行：`LORE_SEED` 8 条校园常识（每条 ≤25 字，只写"去哪问/一般怎么安排"）+ `match_lore(user_text, session_id="")`（子串命中 / ≤2 条 / 单轮 ≤100 字 / 同会话最多 3 次）+ `clear_memory` 清计数；`agent.py` 205 → 207 行：`_facts_block` 从 4 字段扩到 5，新增 `coping_preferences`（"对方愿意试的办法"，面板改完立刻进 prompt），lore 行加限定语"相关时用一句话带出，不要整段念"。**94 passed（+5）**，contract **11/11 + 5/5 + 20/20**。AppTest 4 轮：前 3 轮 `has_lore=True`、第 4 轮自动停。真实调用对照：知心姐姐 0/3 带出事实（`sentence_len=25` + "先确认情绪再开口"），理性导师 1/3（"先查教务通知，看这门课有没有补考或重修。"20 字）。五处口径修正：①step 写"65 passed"是旧基数；②探针的假回复必须按 system prompt 分派，否则会多出复核/重写调用；③"只由 update_memory 写"落地为"静态种子表 + 偏好走 facts 区"两条路（不往 memory.json 塞 lore，避免破坏 8 字段白名单）；④加限定语后仍 0/3，限制在人设不在措辞，**没为 demo 改人设**；⑤`_lore_used` 是唯一模块级可变状态，只影响"少说两句"。证据 `docs/evidence/2026-11-08-s20-lorebook.md`
 
-**下一步（S21）**：集成验收 + 打 `v0.3` —— 逐项复核 W3 五个出口（重写日志 `rewrite=1` / 风险地板不掉 / 面板单字段可清空 / 3 主题不错位 / lore 可命中），跑全量门禁与 10 轮连续对话，然后 commit + `git tag -a v0.3`。
+- ✅ **S21 集成验收 + v0.3（2026-11-08）**：真实 DeepSeek + 不可达端点两组、Edge headless 驱动，**12/12 场景全过**（问候 / 疲惫 / 求助 / 第三人称 / 危机 / 危机从句 / 三轮升级 / 刷新 / 三主题 / 导出 / 清除 / 断网）。**当场修 1 处安全缺口**：`app.py` 资源卡原来只在 `short_circuit`（L3）时渲染，L2 一张不出 → 改为按 `pick_resources(result["level"], [])` 无条件渲染，补 `test_resources_by_level_are_wired`（L3 三张含 12356 / L2 含 0571-87713518 / L1 空）。**95 passed**，contract **11/11 + 5/5 + 20/20**。日志：主流程 23 行（pass 11 / short_circuit 4 / aggregate_escalate 2 / summary_compress 6）+ 断网 3 行，**原文泄漏 0**；L3 轮 `latency_ms=1`（无 LLM，断网仍出卡）。七条口径修正：①step 写 65 passed 是旧基数；②L2 资源卡是缺口当场修；③断网普通轮走 `SAFE_FALLBACK`（degraded=True 出网络提示）而非 `FALLBACK_LINE`；④E2E 必须等 `stSpinner` 消失再发下一条（否则把生成中占位气泡当回复、打断上一轮）；⑤刷新后轮次归 0 但记忆在（session_state vs memory.json）；⑥#3「我该怎么办」guide 仍只共情不给建议，属人设（"先确认情绪"）不是 bug，只记录；⑦**硬要求 4「验收人不是写代码的人」未满足**，需队员复跑签字。截图 16 张 `docs/evidence/s21/`，证据 `docs/evidence/2026-11-08-e2e-v0.3.md`
+
+**下一步（S22）**：28 条规则单测 —— 按 `step/S22-rule-tests.md` 把 D-01~D-28 逐条显式编号成测试（level + rule_ids 双断言），产出覆盖表，并做破坏性验证（改坏一条规则必须变红）。当前 test_guardian 39 条里已有大部分 D 用例，缺的是"逐条编号 + 覆盖表"。
 
 - ✅ **规则缺口补丁 + 复核四项收尾（2026-11-08）**：`roles.py` 只改 4 条正则（X01 否定句补"没有想过/从没想过要"、X03 补"论文/作业/报道"反向分支、H04 补"天台 + 跳下去"并负向断言排除游泳、H06 补"买/囤 + 安眠药"）；`tests/test_guardian.py` +5 条 `GAP_CASES`（D-29~D-32 + 一条护栏），先红后绿；**53 passed**，contract **11/11 + 5/5 + 20/20**。执行书同步升 **v1.2**（附录 B 四条正则 + 变更记录 + 新增附录 D-5，注明不计入分母）。四处决策的处理：①证据日期**不改名**，13 个证据文件头加"实际生成于 2026-11-08"；②规则按上一条补；③S08–S13 拆 5 个提交 + `v0.2`；④执行书 :1128 的"39 passed"旧基数不动。证据 `docs/evidence/2026-11-08-rule-gap-patch.md`
 

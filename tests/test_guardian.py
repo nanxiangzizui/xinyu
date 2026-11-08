@@ -280,3 +280,15 @@ def test_taboos_are_distinct_and_injected():
     assert total == 5, total
     flat = [t for card in agent.PERSONAS.values() for t in card["taboos"]]
     assert len(set(flat)) == len(flat), flat
+
+
+def test_resources_by_level_are_wired():
+    """S21 #4：L2 也要提资源（校心理中心），L3 三张含热线，L1 不打扰。"""
+    from resources import pick_resources
+
+    l3 = pick_resources("L3", [])
+    l2 = pick_resources("L2", [])
+    assert len(l3) == 3, l3
+    assert any("12356" in c["detail"] for c in l3), l3
+    assert any("0571-87713518" in c["detail"] for c in l2), l2
+    assert pick_resources("L1", []) == [], "L1 不该给资源卡"

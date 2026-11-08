@@ -301,10 +301,10 @@ def main() -> None:
                 result = safe_handle(text, sid, st.session_state.messages,
                                      st.session_state.persona_id)
             st.markdown(result["reply"])
-            # 资源卡只在这一轮渲染一次；刷新后从 messages 重绘，不会重复出卡。
-            if result.get("short_circuit"):
-                for card in pick_resources(result["level"], []):
-                    st.info(f"{card['title']}：{card['detail']}")
+            # [SAFE] S10 §8：L2/L3 当轮各出一次资源卡（L2 两张 / L3 三张），L1 为空不打扰。
+            # 卡只渲染在本轮，不写进 messages，刷新重绘时不会重复弹（S21 #4 补的口径）。
+            for card in pick_resources(result["level"], []):
+                st.info(f"{card['title']}：{card['detail']}")
         st.session_state.messages.append({"role": "assistant", "content": result["reply"]})
         st.session_state["degraded"] = result["degraded"]
         st.session_state["last_role"] = result["role"]

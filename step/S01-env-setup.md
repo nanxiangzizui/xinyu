@@ -33,12 +33,15 @@
 ## 3 前置检查（三条命令，全过再往下）
 
 ```powershell
-python -V                # 期望 Python 3.11.x
+py -3.11 -V              # 期望 Python 3.11.x
 git --version            # 期望 git version 2.x
 pwd                      # 期望 …\心理委员
 ```
 
-**若 `python -V` 不是 3.11**：用 `py -3.11 -V` 确认 3.11 是否存在；存在就用 `py -3.11 -m venv .venv` 建环境。
+**本机实况（2026-11-09 已装好）**：Python **3.11.9**，位置 `C:\Users\<用户名>\AppData\Local\Programs\Python\Python311\python.exe`，用 `py -3.11` 调用。
+裸 `python` 指向 **Anaconda 的 3.14.6**——所以 **不要用 `python -m venv`**，会建出 3.14 的环境。全程两条命令：建环境 `py -3.11 -m venv .venv`；之后跑东西用 `.\.venv\Scripts\python.exe`（或激活后用 `python`，激活会把它排到 PATH 最前）。
+
+**换台机器时**（比如队友的笔记本）：`py -3.11 -V` 报错就去 python.org 装 3.11.x 并勾 Add python.exe to PATH，装完 `py -0p` 确认列表里有 `-V:3.11`。没有 3.11 的机器不许开工，否则四个人四个版本，`pip list` 对不上。
 
 > ⚠️ 已知风险：项目路径含**中文**（心理委员）和**空格**（deepseek harness）。
 > 多数情况没问题，但若出现 `ModuleNotFoundError` 或 Streamlit 静态资源 404，
@@ -75,14 +78,17 @@ New-Item -ItemType Directory -Force data\memory, data\logs, docs\evidence, tests
 ### 5.3 建虚拟环境并装依赖
 
 ```powershell
-python -m venv .venv
+py -3.11 -m venv .venv
 .\.venv\Scripts\Activate.ps1
+python -V                                   # 激活后应显示 3.11.x，仍是 3.14 就是激活没生效
 python -m pip install --upgrade pip
 pip install -r requirements.txt -i https://pypi.tuna.tsinghua.edu.cn/simple
 pip list
 ```
 
-`pip list` 里必须能看到：`streamlit 1.3x`、`openai 1.x`、`python-dotenv 1.x`、`pytest 8.x`。
+`pip list` 里必须能看到：`streamlit 1.3x`（装到的是 1.67）、`openai 1.x`、`python-dotenv 1.x`、`pytest 8.x/9.x`。
+
+本机实测（2026-11-09）：`streamlit 1.67.0 / openai 1.109.1 / python-dotenv 1.2.4 / pytest 9.2.0`，`streamlit hello` 在本项目路径（中文 + 空格）上起得来，HTTP 200。
 
 ### 5.4 配置密钥
 
@@ -116,7 +122,7 @@ git log --oneline
 
 | # | 命令 / 动作 | 期望结果 |
 |---|---|---|
-| 1 | `python -V` | Python 3.11.x |
+| 1 | `py -3.11 -V` 且 `.\.venv\Scripts\python.exe -V` | 两条都是 Python 3.11.x |
 | 2 | `pip list \| findstr /i "streamlit openai dotenv pytest"` | 四行都在 |
 | 3 | `git check-ignore .env` | 输出 `.env`（退出码 0） |
 | 4 | `git status --short` | 空输出 |
@@ -144,10 +150,13 @@ Remove-Item -Recurse -Force .git        # 仅当仓库是这一步刚建的
 | `git status` 里出现 `.env` | `.gitignore` 没生效 | 检查文件是否是 UTF-8 无 BOM；`git check-ignore -v .env` 看匹配 |
 | `python` 打开应用商店 | 没装 Python 或 PATH 未勾选 | 重装时勾 Add python.exe to PATH |
 | Streamlit 启动报编码错误 | 控制台代码页 | `chcp 65001` 后重试 |
+| `pip install -r requirements.txt` 报 `UnicodeDecodeError: 'gbk' codec can't decode` | `requirements.txt` 里有中文注释，旧版 pip 按系统 locale（GBK）读文件 | **`requirements.txt` 只许 ASCII**（已改英文注释）；遇到先 `python -m pip install --upgrade pip` 再装 |
+| `python -V` 显示 3.14.x、路径在 Anaconda 下 | PATH 里 Anaconda 排在前面 | **不要改系统 PATH**（会弄坏 conda）；建环境用 `py -3.11`，跑命令用 `.\.venv\Scripts\python.exe` |
+| `py` 不是内部或外部命令 | Python Launcher 没装（极简安装勾掉了） | 重跑安装包 → Modify → 勾 `py launcher` |
 
 ## 9 出口清单
 
-- [ ] `python -V` = 3.11.x
+- [ ] `py -3.11 -V` = 3.11.x，且 `.\.venv\Scripts\python.exe -V` = 3.11.x
 - [ ] 四个依赖装好，`pip list` 能对上
 - [ ] `.env` 已建且**不在** `git status` 里
 - [ ] 四个目录都在

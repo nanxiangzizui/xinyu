@@ -31,8 +31,9 @@
 ## 快速开始（W1 完成后才有）
 
 ```bash
-python -m venv .venv
+py -3.11 -m venv .venv          # 本机裸 python 是 Anaconda 3.14，必须指定 3.11
 .venv\Scripts\activate
+python -V                        # 必须是 3.11.x
 pip install -r requirements.txt
 copy .env.example .env          # 填 LLM_API_KEY
 streamlit run app.py

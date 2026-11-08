@@ -28,7 +28,7 @@
 
 | 层 | 选型 | 说明 |
 |---|---|---|
-| 语言 | Python 3.11 | 不用 3.12+ 的新语法，学校机房可能是 3.11 |
+| 语言 | Python 3.11 | 不用 3.12+ 的新语法，学校机房可能是 3.11。**本机裸 `python` 是 Anaconda 3.14，一律用 `py -3.11` 建环境** |
 | 界面 | Streamlit ≥1.32 | 单页；`st.chat_message` + `st.chat_input` |
 | 模型 | DeepSeek（OpenAI 兼容） | `openai` SDK，`base_url=https://api.deepseek.com` |
 | 存储 | 本地 `data/memory/*.json` | 一人一文件；原子写（tmp + replace） |
@@ -171,6 +171,7 @@
 - 所有 LLM 返回的 JSON：`try/except` + 兜底，解析失败按"中风险"处理，不按"没事"处理。
 - 魔法数字进常量区，不许散落。
 - 不 `print` 用户原文；不在前端展示日志原文（`data/logs/*.jsonl` 只有哈希与字段）。
+- `requirements.txt` **只许 ASCII**：旧版 pip 按系统 locale（本机 GBK）读它，中文注释会直接 `UnicodeDecodeError`（2026-11-09 真实踩到）。
 
 ## 6. 工作方式与状态维护
 
@@ -209,8 +210,10 @@
 ## 7. 常用命令
 
 ```bash
-# 环境
-python -m venv .venv && .venv\Scripts\activate
+# 环境（本机裸 python = Anaconda 3.14，必须用 py -3.11）
+py -3.11 -m venv .venv
+.venv\Scripts\activate
+python -V                                    # 必须是 3.11.x
 pip install -r requirements.txt
 
 # 跑

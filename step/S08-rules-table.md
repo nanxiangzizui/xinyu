@@ -41,7 +41,7 @@ python -c "import roles; print(len(roles.RULES))"   # 现在是 0
 1. **10 个字段一个不能少**：`rule_id / group / pattern / intensity / level / action / exempt / source / version / case_ids`，外加 `why` 便于人读。
 2. 顺序固定：**X 组 → H 组 → W 组**。匹配时按这个顺序跑，代码里也不能重排。
 3. 正则统一用**原始字符串** `r"..."`，统一 `re.IGNORECASE`。
-4. 规则表是**全项目唯一来源**：@ guardian` 与 `coordinator` 只许 `from roles import RULES`，不许各自复制一份。
+4. 规则表是**全项目唯一来源**：`guardian` 与 `coordinator` 只许 `from roles import RULES`，不许各自复制一份。
 5. 改任何一条，必须在表下追加一行变更记录（日期 / 原因 / 谁改）。
 
 ## 5 执行步骤
@@ -64,11 +64,11 @@ RULES: list[dict] = [
  {"rule_id": "H03", "group": "H", "pattern": r"(自残|割腕|划手腕|伤害自己)", "intensity": "强", "level": "L3", "action": "short_circuit", "exempt": "", "why": "自伤行为"},
  {"rule_id": "H04", "group": "H", "pattern": r"(跳楼|跳桥|上吊|从楼上)", "intensity": "强", "level": "L3", "action": "short_circuit", "exempt": "", "why": "具体手段"},
  {"rule_id": "H05", "group": "H", "pattern": r"(遗书|最后一条|交代后事|世界再见)", "intensity": "强", "level": "L3", "action": "short_circuit", "exempt": "", "why": "告别/后事"},
- {"rule_id": "H06", "group": "H", "pattern": r"((一把|整瓶|很多).{0,4}药|吞药|吃药自杀)", "intensity": "强", "level": "L3", "action": "short_circuit", "exempt": "", "why": "药物准备"},
+ {"rule_id": "H06", "group": "H", "pattern": r"((一把|整瓶|一瓶|几瓶|很多).{0,4}药|吞药|吃药自杀)", "intensity": "强", "level": "L3", "action": "short_circuit", "exempt": "", "why": "药物准备"},
  {"rule_id": "H07", "group": "H", "pattern": r"(今晚|明天|一会儿).{0,6}(结束|动手|了断|就走了)", "intensity": "强", "level": "L3", "action": "short_circuit", "exempt": "", "why": "时间计划"},
  {"rule_id": "H08", "group": "H", "pattern": r"(想杀|弄死|捅了|报复(他|她))", "intensity": "强", "level": "L3", "action": "short_circuit", "exempt": "", "why": "他伤意图"},
  {"rule_id": "H09", "group": "H", "pattern": r"(撑不下去|不想再撑|不想继续了|熬不下去)", "intensity": "强", "level": "L3", "action": "short_circuit", "exempt": "", "why": "彻底耗竭"},
- {"rule_id": "H10", "group": "H", "pattern": r"(没意义|没价值|累赘).{0,10}(活|死)", "intensity": "强", "level": "L3", "action": "short_circuit", "exempt": "", "why": "自我否定到生存层面"},
+ {"rule_id": "H10", "group": "H", "pattern": r"(没意义|没价值|累赘).{0,10}(活|死)|活.{0,4}(没|没有)(意义|价值)", "intensity": "强", "level": "L3", "action": "short_circuit", "exempt": "", "why": "自我否定到生存层面"},
  # ---- W 组：弱信号，记日志或抬地板 ----
  {"rule_id": "W01", "group": "W", "pattern": r"(好累|很累|心累|疲惫)", "intensity": "弱", "level": "L1", "action": "log_only", "exempt": "", "why": "疲惫"},
  {"rule_id": "W02", "group": "W", "pattern": r"(没意思|麻木|空落落|无所谓)", "intensity": "弱", "level": "L2", "action": "floor_l2", "exempt": "", "why": "兴趣丧失/疏离"},

@@ -38,7 +38,7 @@ pytest tests/test_guardian.py -q      # 16 passed（S09 6 + S10 10）
 
 ## 5 执行步骤
 
-### 5.1 已覆盖（16 条，别重写）
+### 5.1 已覆盖的 16 条 D 用例（别重写）
 
 | 编号 | 内容 | 来自 |
 |---|---|---|
@@ -57,7 +57,7 @@ CASES = [
     ("连续一周失眠", "L1", "W04"),
     ("有时候想消失一下", "L2", "W05"),
     # 组合与边界（D-17 ~ D-20, D-26 ~ D-28）
-    ("笑死，我今天想死", "L3", "H01"),                        # 夸张词不许跨句豁免
+    ("笑死了，我今天想死", "L3", "H01"),                        # 夸张词不许跨句豁免
     ("不想死但是不想活", "L3", "H01"),                        # 否定式绕过
     ("他说他想自杀", "L2", "X05"),                            # 第三人称降级
     ("你能听我说说吗", "L1", None),                           # 无命中
@@ -94,7 +94,7 @@ def test_rules(text, level, rule_id):
 ## 6 验证
 
 ```powershell
-pytest tests/test_guardian.py -q     # 28 passed
+pytest tests/test_guardian.py -q     # 39 passed（28 条 D + 11 条 post_check/复核/说教）
 pytest -q                            # 全部
 ```
 
@@ -117,7 +117,7 @@ git checkout -- tests/test_guardian.py
 
 ## 9 出口清单
 
-- [ ] 28/28 passed
+- [ ] 28 条 D 用例全绿（pytest 显示 39 passed）
 - [ ] 每条断言 level + rule_id
 - [ ] 破坏性验证做过（改坏规则会红）
 - [ ] 覆盖表进报告

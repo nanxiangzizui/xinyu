@@ -95,7 +95,7 @@ streamlit run app.py      # 本地跑通三幕
 心屿-v1.0/
 ├─ app.py / roles.py / agent.py / coordinator.py / guardian.py / memory.py / resources.py / logger.py / theme.py
 ├─ contract_check.py / metrics.py / requirements.txt / README.md
-├─ tests/ (6 个文件，97 passed)
+├─ tests/ (7 个文件，97 passed)
 ├─ docs/ (report.md / slides.pdf / evidence/ / demo-script.md)
 └─ step/ (26 个执行文件)
 ```

@@ -83,8 +83,10 @@ def llm_rewrite(user_text: str, reply: str, reasons: list[str], role: str) -> st
 
 ### 5.3 接进 post_check
 
+这一段是 **S13 函数体的升级版**（多了 LLM 复核），整体替换 S13 §5.3 的实现；签名一个字都不改——S02 契约里已经有 `rewriter=None`。
+
 ```python
-def guardian_post_check(user_text, reply, level, role, rewriter=None) -> dict:
+def guardian_post_check(user_text: str, reply: str, level: str, role: str, rewriter=None) -> dict:
     # ① 规则复查
     bad = _violations(reply, level)
     # ② 规则不过 → 重写；规则过 → 再复核一次

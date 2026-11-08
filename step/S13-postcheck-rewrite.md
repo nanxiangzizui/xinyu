@@ -11,7 +11,7 @@
 
 ## 1 这一步做什么
 
-实现 `guardian_post_check(user_text, reply, level, role)`：**检查模型的回复**，不过就重写一次，再不过就换成安全模板。
+实现 `guardian_post_check(user_text, reply, level, role, rewriter=None)`：**检查模型的回复**，不过就重写一次，再不过就换成安全模板。
 
 产出：
 
@@ -78,8 +78,10 @@ SAFE_FALLBACK = {
 
 ### 5.3 主函数
 
+参数表与 S02 契约逐字对齐（`rewriter` 在 S02 就写进了空壳与 SPEC）——**只写函数体，不要改签名**，否则 `contract_check.py` 立刻红。
+
 ```python
-def guardian_post_check(user_text, reply, level, role, rewriter=None) -> dict:
+def guardian_post_check(user_text: str, reply: str, level: str, role: str, rewriter=None) -> dict:
     """五步：复查 → 重写 1 次 → 复检 → 记账 → 兜底。不通过就不发。"""
     bad = _violations(reply, level)
     if not bad:

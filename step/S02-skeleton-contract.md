@@ -67,13 +67,15 @@ THEMES: dict = {}           # S19 填 3 套
 
 每个函数的 docstring 写一句"本步先返回什么，Sxx 实现"。签名照抄 §3.3。
 
+**签名即最终契约**：`rewriter=None`（post_check）与 `session_id=""`（match_lore）是给 S13/S20 预留的可选参数。后面各步只写函数体，**不加参数、不改顺序、不删默认值**——否则 `contract_check.py` 会在那一步变红。
+
 ```python
 # guardian.py
 def guardian_pre_check(user_text: str) -> dict:
     """S02 空壳：一律放行 L1。S10 实现规则+短路。"""
     return {"level": "L1", "rule_ids": [], "exempted": False, "reason": "stub"}
 
-def guardian_post_check(user_text: str, reply: str, level: str, role: str) -> dict:
+def guardian_post_check(user_text: str, reply: str, level: str, role: str, rewriter=None) -> dict:
     """S02 空壳：一律通过。S13 实现复核+重写。"""
     return {"pass": True, "reason": "", "fixed_reply": None,
             "rewrite": 0, "template_fallback": False}
@@ -101,7 +103,7 @@ def read_memory(session_id: str) -> dict: ...
 def write_memory(session_id: str, data: dict) -> None: ...
 def update_memory(session_id: str, user_text: str, reply: str) -> dict: ...
 def clear_memory(session_id: str) -> bool: ...
-def match_lore(user_text: str) -> list[str]:
+def match_lore(user_text: str, session_id: str = "") -> list[str]:
     """S02 空壳：不命中。S20 实现。"""
     return []
 ```
@@ -124,35 +126,79 @@ def build_system_prompt(persona_id: str, memory: dict, lore: list[str]) -> str:
 ```python
 """contract_check.py — 11 个签名 + 5 个常量，一次校验。"""
 from __future__ import annotations
+import importlib
 import inspect
 import sys
 
-import agent, coordinator, guardian, memory, resources, roles
+import roles
 
+EMPTY = inspect.Parameter.empty
 SPEC = {
-    "memory.read_memory": "(session_id: str) -> dict",
-    "memory.write_memory": "(session_id: str, data: dict) -> None",
-    "memory.update_memory": "(session_id: str, user_text: str, reply: str) -> dict",
-    "memory.clear_memory": "(session_id: str) -> bool",
-    "memory.match_lore": "(user_text: str) -> list[str]",
-    "agent.call_llm": "(messages: list[dict], temperature: float = 0.7) -> dict",
-    "agent.build_system_prompt": "(persona_id: str, memory: dict, lore: list[str]) -> str",
-    "coordinator.coordinator_decide": "(memory: dict, user_text: str, level: str) -> dict",
-    "guardian.guardian_pre_check": "(user_text: str) -> dict",
-    "guardian.guardian_post_check": "(user_text: str, reply: str, level: str, role: str) -> dict",
-    "resources.pick_resources": "(level: str, emotion_tags: list[str]) -> list[dict]",
+    "memory.read_memory": [("session_id", EMPTY)],
+    "memory.write_memory": [("session_id", EMPTY), ("data", EMPTY)],
+    "memory.update_memory": [("session_id", EMPTY), ("user_text", EMPTY), ("reply", EMPTY)],
+    "memory.clear_memory": [("session_id", EMPTY)],
+    "memory.match_lore": [("user_text", EMPTY), ("session_id", "")],
+    "agent.call_llm": [("messages", EMPTY), ("temperature", 0.7)],
+    "agent.build_system_prompt": [("persona_id", EMPTY), ("memory", EMPTY), ("lore", EMPTY)],
+    "coordinator.coordinator_decide": [("memory", EMPTY), ("user_text", EMPTY), ("level", EMPTY)],
+    "guardian.guardian_pre_check": [("user_text", EMPTY)],
+    "guardian.guardian_post_check": [("user_text", EMPTY), ("reply", EMPTY),
+                                     ("level", EMPTY), ("role", EMPTY), ("rewriter", None)],
+    "resources.pick_resources": [("level", EMPTY), ("emotion_tags", EMPTY)],
 }
 CONSTS = {"TIMEOUT": 15, "N_WINDOW": 5, "COOLDOWN": 3, "SUMMARY_MAX": 200, "SUMMARY_EVERY": 5}
+
+
+def check_one(name: str, expect: list) -> str | None:
+    """通过返回 None；不通过返回一句人话。只比参数名/顺序/默认值，不比注解。"""
+    mod_name, fn_name = name.split(".")
+    try:
+        fn = getattr(importlib.import_module(mod_name), fn_name)
+    except Exception as exc:                       # 边界：模块或函数缺失
+        return f"取不到函数（{exc.__class__.__name__}）"
+    params = list(inspect.signature(fn).parameters.values())
+    if len(params) != len(expect):
+        return f"参数个数 {len(params)} != {len(expect)}"
+    for got, (want_name, want_default) in zip(params, expect):
+        if got.name != want_name:
+            return f"参数名 {got.name} != {want_name}"
+        if (got.default is EMPTY) != (want_default is EMPTY):
+            return f"{want_name} 有没有默认值不一致"
+        if want_default is not EMPTY and got.default != want_default:
+            return f"{want_name} 默认值 {got.default!r} != {want_default!r}"
+    return None
+
+
+def main() -> int:
+    bad = 0
+    for name, expect in SPEC.items():
+        err = check_one(name, expect)
+        if err:
+            bad += 1
+            print(f"FAIL {name}: {err}")
+    print(f"{len(SPEC) - bad}/{len(SPEC)} signatures OK")
+
+    const_bad = [k for k, v in CONSTS.items() if getattr(roles, k, object()) != v]
+    for k in const_bad:
+        print(f"FAIL roles.{k}: 期望 {CONSTS[k]} 实际 {getattr(roles, k, '缺失')!r}")
+    print(f"{len(CONSTS) - len(const_bad)}/{len(CONSTS)} constants OK")
+    return 1 if bad or const_bad else 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())
 ```
 
 主流程三步，缺一不可：
 
-1. 逐个 `getattr` 取函数 → `inspect.signature` → 与 `SPEC` 比对（**只比参数部分**，返回注解单独比一次）
+1. 逐个 `importlib.import_module` 取模块 → `inspect.signature` → 只比**参数名、顺序、默认值**
 2. 校验 `roles` 的五个常量值
-3. 打印 `11/11 signatures OK` 与 `5/5 constants OK`；有任一不符 → 打印 `FAIL <名字>: 期望 X 实际 Y` 并 `sys.exit(1)`
+3. 打印 `11/11 signatures OK` 与 `5/5 constants OK`；有任一不符 → 打印 `FAIL <名字>: <原因>` 并 `sys.exit(1)`
 
-> 比对时**忽略注解字符串的写法差异**（`dict` 与 `Dict`），只比参数名、顺序、默认值。
-> 注解只做"有没有"的检查，不做全文比对——否则改一次 typing 写法就全员报错。
+> **不要逐字比 `str(sig)`**：文件头有 `from __future__ import annotations` 时，注解会渲染成带引号的 `'str'`，逐字比一定全员报错——这是最容易踩的假红。
+> 注解不参与判定（写不写都能过）；要比的是**名字、顺序、默认值**，这三样才是调用方能感知的契约。
+> 要加参数就改 `SPEC`，**不许为了让检查变绿去放宽检查**。
 
 ### 5.4 跑第一次
 

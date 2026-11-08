@@ -35,12 +35,12 @@ alwaysApply: true
 ```text
 memory.py      read_memory(session_id) / write_memory(session_id, data) /
                update_memory(session_id, user_text, reply) /
-               clear_memory(session_id) / match_lore(user_text) -> list[str]
+               clear_memory(session_id) / match_lore(user_text, session_id="") -> list[str]
 agent.py       call_llm(messages, temperature=0.7) -> dict
                build_system_prompt(persona_id, memory, lore) -> str
 coordinator.py coordinator_decide(memory, user_text, level) -> dict
 guardian.py    guardian_pre_check(user_text) -> dict
-               guardian_post_check(user_text, reply, level, role) -> dict
+               guardian_post_check(user_text, reply, level, role, rewriter=None) -> dict
 resources.py   pick_resources(level, emotion_tags) -> list[dict]
 ```
 

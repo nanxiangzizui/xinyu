@@ -91,8 +91,7 @@ Copy-Item .env.example .env
 notepad .env
 ```
 
-先填 `LLM_API_KEY`（没有就先留空，S04 的 MOCK 模式不需要）。**另一条必须填**：
-`ALLOWED_PERSONAS` 保持默认五个 id，不要动——S07 会用。
+先填 `LLM_API_KEY`（没有就先留空，S04 的 MOCK 模式不需要）。其余键**保持默认**：代码只读 `.env.example` 里已有的变量，不要自己加。
 
 ### 5.5 验证忽略规则（这一步最容易被跳过，也最容易出事）
 

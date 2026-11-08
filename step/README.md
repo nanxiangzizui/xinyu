@@ -53,6 +53,8 @@
 步内合计 96（编码 82 + 测试 14）+ 文档 20 = 116 人时。
 另有 28 人时不在步内：培训 15、周五集成 6、站会机动 7。合计 144，与执行书 §2.1 对齐。
 
+> 与执行书 §2.1 的差别：执行书记的是“编码 80 + 会议 15”；本表把会议拆成“周五集成 6 + 站会 7 = 13”，多出的 2 人时记进编码（82）。**总数 144 不变**，多的 2 人时用于两次周五集成的返工，不从测试或文档里扣。
+
 ---
 
 ## 2 四道安全阀（每个文件都假设你遵守）
@@ -96,12 +98,12 @@ SUMMARY_MAX = 200 SUMMARY_EVERY = 5
 
 memory.py       read_memory(session_id) / write_memory(session_id, data) /
                 update_memory(session_id, user_text, reply) /
-                clear_memory(session_id) / match_lore(user_text) -> list[str]
+                clear_memory(session_id) / match_lore(user_text, session_id="") -> list[str]
 agent.py        call_llm(messages, temperature=0.7) -> dict
                 build_system_prompt(persona_id, memory, lore) -> str
 coordinator.py  coordinator_decide(memory, user_text, level) -> dict
 guardian.py     guardian_pre_check(user_text) -> dict
-                guardian_post_check(user_text, reply, level, role) -> dict
+                guardian_post_check(user_text, reply, level, role, rewriter=None) -> dict
 resources.py    pick_resources(level, emotion_tags) -> list[dict]
 ```
 
@@ -134,7 +136,7 @@ dec  = {"role": "listener|guide|crisis", "reason": "default|crisis_shortcircuit|
 
 ---
 
-## 5 已裁决的三处文档冲突（照这里执行，别再问）
+## 5 已裁决的十处文档冲突（照这里执行，别再问）
 
 1. **`guardian_pre_check` 签名**：执行书 §4.5 的代码草稿写 `(user_text, session_state)`，附录 A 与 `.cursor/rules/xinyu.mdc` 写 `(user_text)`。
    → **以单参数为准**。Guardian 一旦能读写会话状态，"否决权唯一"就会被状态污染。冷却计数放在 `coordinator` 与 `app` 里。
@@ -142,6 +144,20 @@ dec  = {"role": "listener|guide|crisis", "reason": "default|crisis_shortcircuit|
    → **四个字段为准**；`pass` 由调用方推导 `level != "L3"`。
 3. **规则表字段数**：执行书 §4.2 列 8 个字段，附录 B 的表只画了 7 列。
    → **以 §4.2 为准**（多出的 `source / version / case_ids` 必须写），附录 B 是简写。缺字段的规则不算写完。
+4. **`guardian_post_check` 第五个参数 `rewriter`**：执行书 附录 A 只有三个参数，且带 `session_state`。
+   → **以 S02 契约为准**：`(user_text, reply, level, role, rewriter=None)`。`rewriter` 只用于测试注入假重写、生产留 `None`；**会话状态不许塞进来**。
+5. **`match_lore` 的 `session_id`**：执行书 附录 A 写 `(user_text, memory)`。
+   → **以 S02 契约为准**：`(user_text: str, session_id: str = "")`。第二个参数只用于“同会话最多注入 3 次”的计数，不传就退化为不计数。
+6. **`pick_resources` 参数顺序**：执行书 附录 A 是 `(emotion_tags, level)`，S02 是 `(level, emotion_tags)`。
+   → **以 S02 为准**：`level` 在前——L3 时即使情感标签为空，也必须给资源卡。
+7. **`build_system_prompt` 参数**：执行书 附录 A 是 `(role, persona_id, memory, emotion_tags)`，S02 是 `(persona_id, memory, lore)`。
+   → **以 S02 为准**：风格由 `persona_id` 决定；安全区是常量、不由参数拼；`lore` 是本项目唯一的外部知识入口。
+8. **28 条 D 用例的编号**：执行书 附录 D 是旧稿，与 S10/S22 的用例文本对不上（连 D-06、D-10 的句子都不同）。
+   → **以 `step/S10` 与 `step/S22` 为准**；执行书附录 D 按 step 重写（v1.1）。
+9. **误拦率的分母**：执行书 §8.2 写“反例集 8 条判 L3 的比例”，S24 写“20 条普通闲聊判 L2+ 的比例”。
+   → **以 S24 为准**（20 条分母更稳，8 条被 1 条翻盘）；执行书的“对话级召回 ≥80%”降为观察项，不进验收。
+10. **工时 2 人时的挪动**：执行书 §2.1 是“编码 80 + 会议 15”；本册是“编码 82 + 会议 13（周五集成 6 + 站会 7）”。
+   → 总数 144 不变，多出的 2 人时用于周五集成返工，**不从测试或文档里扣**。
 
 ---
 

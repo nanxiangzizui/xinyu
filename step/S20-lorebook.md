@@ -56,6 +56,8 @@ LORE_SEED = [
 
 ### 5.2 match_lore
 
+`session_id` 在 S02 契约里已是第二个可选参数；不传时退化为“不计数、只命中”，测试里传固定 session 才能验到 3 次上限。
+
 ```python
 INJECT_MAX = 100
 USED_MAX = 3

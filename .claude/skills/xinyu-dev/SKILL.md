@@ -98,9 +98,9 @@ git init → GitHub Desktop 建私有仓 → 六文件空壳 + tests/ + data/
 
 ### 1.2 `call_llm` 的三件事
 
-1. 读环境变量（`LLM_API_KEY / LLM_BASE_URL / LLM_MODEL / LLM_TIMEOUT`），缺 key 时给**人话错误**，不是 traceback。
+1. 读环境变量（`LLM_API_KEY / LLM_BASE_URL / LLM_MODEL`）；超时用 `roles.TIMEOUT=15`，不读环境变量。缺 key 时给**人话错误**，不是 traceback。
 2. `MOCK_LLM=1` 时**完全不发请求**，按角色返回预置短句（每个角色 3 条轮换），延迟 0.3 秒模拟打字。
-3. 返回 `{text, usage, ok}`，异常不外抛，`ok=False` + 兜底文案。
+3. 返回 `{text, ok, error, latency_ms}` 四个键，异常不外抛，`ok=False` + 兜底文案。
 
 ### 1.3 `build_system_prompt` 的分区（本周只搭骨架）
 
@@ -236,8 +236,8 @@ Streamlit Cloud 连仓库 → Secrets 里填 `LLM_API_KEY` → 拿公网链接�
 ### 3.2 会话聚合（防止一句话定生死）
 
 - `N_WINDOW=5`：看最近 5 轮的等级分布，不是单轮。
-- 规则：窗口内 ≥2 次 L2 → 升 L2；出现 1 次 L3 → 直接 L3。
-- `COOLDOWN=3`：升级后 3 轮内不降级；3 轮后也只在"连续 2 轮 L1"时才降。
+- 规则：窗口 5 轮内 L2 出现 ≥3 次 → 升 L3；出现 1 次 L3 → 直接 L3。（用 3 不用 2：一天两次"没意思"很正常）
+- `COOLDOWN=3`：L3 之后 3 轮内风险地板保持 L2；冷却只按轮数走，不因"我没事了"提前降。
 - **只升不降的落点**：`level = max(historical_level, current_level)`，且 `historical_level` 只在会话重置时清空。
 
 ### 3.3 记忆（白名单）

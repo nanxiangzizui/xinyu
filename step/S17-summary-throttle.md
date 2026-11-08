@@ -15,7 +15,7 @@
 
 产出：
 
-1. `should_compress(turn, summary_len)`：三条件
+1. `should_compress(turn, summary_len, summary_at_turn, level)`：三条件
 2. `compress_summary(old, history)`：调一次 LLM 压缩
 3. `summary_at_turn` 字段维护
 4. 3 条测试

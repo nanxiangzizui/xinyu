@@ -1,6 +1,6 @@
 ---
 name: xinyu-dev
-description: 开发《心屿 MindIsle》情绪陪伴对话系统（项目根目录 D:\deepseek harness\心理委员）时使用。涉及三角色状态机 listener/guide/crisis、Guardian 安全审查与一票否决、风险分级 L1/L2/L3 与四类豁免、只升不降、会话聚合 N=5、memory.json 白名单与 rolling_summary 摘要、迷你 Lorebook、五套人设与主题、Streamlit 界面、DeepSeek 调用、contract_check 契约校验、28+12+8 条测试、三幕演示与答辩时，先加载本技能。改 guardian.py / coordinator.py / RULES / 记忆写入前必须读"安全模块专项"与"记忆模块专项"。
+description: 开发《心屿 MindIsle》情绪陪伴对话系统 v1 基线（工作区 D:\deepseek harness\xinyu-agent，基线 tag v1.0）时使用；做 v2 增量看 xinyu-v2。涉及三角色状态机 listener/guide/crisis、Guardian 安全审查与一票否决、风险分级 L1/L2/L3 与四类豁免、只升不降、会话聚合 N=5、memory.json 白名单与 rolling_summary 摘要、迷你 Lorebook、五套人设与主题、Streamlit 界面、DeepSeek 调用、contract_check 契约校验、28+12+8 条测试、三幕演示与答辩时，先加载本技能。改 guardian.py / coordinator.py / RULES / 记忆写入前必须读"安全模块专项"与"记忆模块专项"。
 ---
 
 # 心屿 MindIsle 开发技能

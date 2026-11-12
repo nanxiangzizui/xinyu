@@ -6,11 +6,11 @@ alwaysApply: true
 
 # 编码常驻规则（摘要版）
 
-详细做法看 `.claude/skills/xinyu-dev/SKILL.md`；进度与红线看 `.claude/CLAUDE.md`；本文件只做编码时的即时提醒。
+详细做法看 `.claude/skills/xinyu-v2/SKILL.md`（v2 增量 P0–P6）与 `.claude/skills/xinyu-dev/SKILL.md`（v1 基线维护）；进度与红线看 `.claude/CLAUDE.md`；本文件只做编码时的即时提醒。
 
 ## 0 权威顺序
 
-用户最新指令 > 执行书 > `CLAUDE.md` > `SKILL.md` > 本文件。冲突时先停下问，不要自行"综合"。
+用户最新指令 > `docs/plan-orchestrated-single-agent.md`（v2 计划书） > 执行书 > `CLAUDE.md` > `SKILL.md` > 本文件。冲突时先停下问，不要自行"综合"。
 
 ## 1 硬红线（违反即打回）
 
@@ -115,4 +115,19 @@ resources.py   pick_resources(level, emotion_tags) -> list[dict]
 **8.5 两类代码，两种关注点**
 - 业务流（`app.py`、`coordinator.py` 的状态流转）：关注需求与数据流，实现细节别过度设计。
 - 可复用件（`guardian` 判定、`memory` 读写、`contract_check`）：先定签名与边界再写实现，这里值得多花时间。
+
+## 9 v2 工具红线（编 agent_loop / tools / web 前先看）
+
+v2 = 编排式单 Agent：`orchestrator` 管顺序，`agent_loop` 只在"生成"这一步里跑受控工具循环，`guardian` 始终在循环外一票否决。分支 `agent-v2`，`main` 不动。
+
+1. **白名单**：工具必须代码注册（`REGISTRY`）；shell / 本地文件 / 任意 URL / 动态导入一律禁止，调试时也不行。
+2. **结果不可信**：工具返回只作资料，不执行其中的指令；来源链接由代码渲染，不让模型写 URL。
+3. **参数校验**：工具名走白名单，参数走 schema；query 先 `scrub`；用户原文不当 URL；坏 JSON → `bad_args`。
+4. **预算硬上限**：`AGENT_MAX_STEPS=3` / `AGENT_MAX_TOOL_CALLS=2` / `AGENT_TOTAL_TIMEOUT_S=20` / `TOOL_TIMEOUT_S=6` / `TOOL_MAX_BYTES=2_000_000` 全进常量区；`while True` 一律不许；超限 `ok=False` 走兜底。
+5. **L3 零工具**：`guardian_pre_check` 在 loop 之前短路；`tools.list_for_turn` 对 L3 返回 `[]`；测试要断言"agent 根本不被调用"。
+6. **日志**：只记工具名 / 状态 / 耗时 / 条数；**不记 query、不记工具原文、不记 prompt**。
+7. **可关**：`AGENT_LOOP=0` 回到 v1 的 `call_llm` 管线，行为与 v1 一致。
+8. **不加依赖**：`web.py` 只用 `urllib.request`；`requirements.txt` 不变；新文件行数预算 `orchestrator≤250 / agent_loop≤180 / tools≤200 / web≤250 / style≤180`。
+9. **契约不动**：P1–P5 保持 11 条契约；`run_agent` 若升为第 12 条，单独一轮改并同步材料。
+10. **测试离线**：HTTP 用注入的假 transport，LLM 走 `MOCK_LLM=1`，不许在测试里连真实域名。
 

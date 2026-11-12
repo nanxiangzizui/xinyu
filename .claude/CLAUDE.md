@@ -48,7 +48,7 @@
 | 阶段 | 做什么 | 状态 | 出口（可验证） |
 |---|---|---|---|
 | P0 | 基线复跑 + DeepSeek `tools` 能力探测 | ✅ | 探测结果进 `docs/evidence/`；132 passed + 契约全绿 |
-| P1 | `app.py` 的 `handle` / `safe_handle` 搬进 `orchestrator.py` | ⬜ | **行为零变化**；132 passed；C-01 / C-05 / C-09 不变 |
+| P1 | `app.py` 的 `handle` / `safe_handle` 搬进 `orchestrator.py` | ✅ | **行为零变化**；132 旧 + 5 新 = 137 passed；C-01 / C-05 / C-09 不变 |
 | P2 | `agent_loop.py` + `tools.py`（先接 echo / fake_search 假工具） | ⬜ | 直接答 / 一次工具后答 / 步数超限 / 工具报错 / 未知工具 / L3 不循环，六条全绿 |
 | P3 | `web.py` 网络工具（搜索 / 图片 / 风格包） | ⬜ | 真实检索 smoke；超时 / 401 / 坏 JSON 有兜底；日志不写 query |
 | P4 | `guardian_tool_check` 接进 loop + 侧栏"本轮编排" | ⬜ | 越权工具被拦；trace 不含原文；来源链接由代码渲染 |
@@ -137,7 +137,10 @@ xinyu-agent/
 - ✅ `.env` 重建（6 键，不入库）；本地不留 `.streamlit/secrets.toml`（会让 `test_f06` 变红），模板见 `.streamlit/secrets.toml.example`，线上 Secrets 在 Cloud 后台填
 - ✅ `data/memory`、`data/logs` 空目录（`.gitkeep` 占位）
 - ✅ **P0 完成（2026-11-12）**：`pytest` 132 passed、`contract_check` 11/11 + 5/5 + 20/20、`metrics` 四指标全达标；DeepSeek `tools` 探测三关全过（证据 `docs/evidence/P0-tools-probe.md`，结论：走标准 OpenAI `tool_calls` 协议）
-- ⬜ **下一阶段 P1**：把 `app.py` 的 `handle` / `safe_handle` 搬进 `orchestrator.py`，要求行为零变化
+- ✅ **P1–P6 执行文档已建（2026-11-12）**：`docs/v2-steps/` 下 README + 六份分步操作手册（P1 orchestrator / P2 agent-loop / P3 web-search / P4 guardian-tool-gate / P5 style-layer / P6 regression-materials），体例同 `step/`（11 节：做什么→决策→接口→前置→步骤→测试→验证→失败→回滚→出口→回执）；**本次只写文档，代码零改动，pytest 仍 132 passed**
+- 📝 **P3 内容检索候选设计（2026-11-12，未决策）**：`docs/v2-steps/P3-content-retrieval-design.md` 记录“本地轻量识别 → orchestrator 路由 → MCP/HTTP 取风格 / 贴纸 / 图片”的三层想法；明确 skill 不是运行时能力、host 就是 orchestrator、MCP 只能作白名单工具后端；**不改计划书与 D-1~D-5，P3b 仍等 D-1**
+- ✅ **P1 完成（2026-11-12）**：`orchestrator.py`（186 行）接管七步编排 + 9 节点 trace + 异常兜底，`safe_handle` 改名 `safe_run`；`app.py` 326→174 行只留 UI；**137 passed**（132 旧 + `test_orchestrator` 5 新）、`contract_check` 11/11 + 5/5 + 20/20、`metrics` 四指标不变；证据 `docs/evidence/P1-orchestrator-2026-11-12.md`。唯一与文档偏差：P1 文档 §6 示例用 `handle` 断言兜底，实际按 §5.1 改用 `safe_run`
+- ⬜ **下一阶段 P2（代码）**：按 `docs/v2-steps/P2-agent-loop.md` 建 `agent_loop.py` + `tools.py`（先接 echo / fake_search 假工具），六条用例全绿
 
 **v1.0 基线（2026-11-08 冻结，数字以提交包解压实测为准）**
 
@@ -244,7 +247,7 @@ $env:MOCK_LLM="1"; .\.venv\Scripts\streamlit.exe run app.py    # 离线演示
 ## 8. 验收底线
 
 - **P0**：探测结果落证据；132 passed；契约全绿
-- **P1**：行为零变化；132 passed；C-01 / C-05 / C-09 不变
+- **P1**：行为零变化；132 旧用例全绿（加 5 条新用例 = 137 passed）；C-01 / C-05 / C-09 不变
 - **P2**：六条 agent-loop 用例全绿；破坏性验证三条做满
 - **P3**：真实检索 smoke 通过；超时 / 401 / 坏 JSON 都有兜底
 - **P4**：越权工具被拦；trace 不含原文

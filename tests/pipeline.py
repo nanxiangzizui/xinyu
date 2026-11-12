@@ -6,9 +6,8 @@
     reply = chat.say("你好")
     assert rows(chat.sid)[-1]["role"] == "listener"
 
-为什么不直接调 app.handle：handle 依赖 st.session_state，只有 Streamlit 运行时里
-才存在。AppTest 跑的是真 app.py（真 chat_input、真侧栏、真管线），所以断言的是
-"用户实际经历的那条路"，而不是把单函数拼起来的假流程。
+为什么不直接调 orchestrator.handle：AppTest 跑的是真 app.py（真 chat_input、真侧栏、
+真管线），断言的才是"用户实际经历的那条路"。单函数级另见 test_orchestrator.py。
 """
 from __future__ import annotations
 
@@ -22,7 +21,7 @@ from streamlit.testing.v1 import AppTest
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 APP = str(ROOT / "app.py")
 
-# 与 app.py:62 同文：F-01 用它对账，文案改了测试要跟着红（由 test_f01 校验）。
+# 与 orchestrator.py 同文：F-01 用它对账，文案改了测试要跟着红（由 test_f01 校验）。
 FALLBACK_LINE = "我这边刚刚卡了一下，但我在。你可以再说一句吗？"
 
 
@@ -90,3 +89,9 @@ def memory_path(sid: str) -> pathlib.Path:
 
 def app_source() -> str:
     return pathlib.Path(APP).read_text(encoding="utf-8")
+
+
+def pipeline_source() -> str:
+    """兜底句在 orchestrator 里，渲染在 app 里：源码级断言要看两份。"""
+    return (pathlib.Path(APP).read_text(encoding="utf-8")
+            + pathlib.Path(ROOT / "orchestrator.py").read_text(encoding="utf-8"))

@@ -20,7 +20,7 @@ from pipeline import Chat, FALLBACK_LINE, memory_of, memory_path, reply_rows
 
 def test_f01_timeout_becomes_human_line_and_logged(monkeypatch):
     """F-01：生成抛超时 → 一句人话、等级按 L2 记、这一轮在日志里留痕。"""
-    assert FALLBACK_LINE in pipeline.app_source()      # 兜底文案与 app.py 同步
+    assert FALLBACK_LINE in pipeline.pipeline_source()  # 兜底文案与 orchestrator/app 同步
 
     def boom(*args, **kwargs):
         raise TimeoutError()

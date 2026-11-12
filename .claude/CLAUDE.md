@@ -52,10 +52,10 @@
 | P2 | `agent_loop.py` + `tools.py`（先接 echo / fake_search 假工具） | ✅ | 直接答 / 一次工具后答 / 步数超限 / 工具次数超限 / 工具报错 / 未知工具 / L3 不循环，六条全绿；**137 旧 + 13 新 = 150 passed** |
 | P3 | `web.py` 网络工具（搜索 / 图片 / 风格包） | 🟨 | P3a：七类错误码 9 条离线测试全绿（159 passed）、`web.py` 180 行；P3b 真实 provider smoke 等 key |
 | P4 | `guardian_tool_check` 接进 loop + 侧栏"本轮编排" | ✅ | **159 旧 + 7 新 = 166 passed**；越权工具被拦；trace 不含原文；来源链接由代码渲染；`AGENT_LOOP` 默认 1 |
-| P5 | `style.py` 风格层（口吻 / 句尾 / 贴纸） | ⬜ | L3 模板逐字不变；L2 稳重；L1 口语化；贴纸不越界 |
+| P5 | `style.py` 风格层（口吻 / 句尾 / 贴纸） | 🟨 | **P5a：166 旧 + 9 新 = 175 passed**；L3 / 模板兜底 / FALLBACK_LINE 逐字；L1 贴纸、L2 无贴纸；P5b 盲读 / 真机待人工 |
 | P6 | 回归 / 材料 / 演示 | ⬜ | Gate A 仍成立；v2.0 可演示；docx / PPT / 视频数字回填 |
 
-**P0–P4 已完成**；P3b 真实检索仍等 D-1（provider / key），P5 口吻层待做。
+**P0–P4 已完成，P5a 完成**；P3b 真实检索仍等 D-1（provider / key），P5b 盲读 / 真机待人工；P6 可开始，Gate A 前需补人工项。
 
 ### 2.3 v2 预算常量（进常量区，测试断言"超限会停"，不靠模型自觉）
 
@@ -144,7 +144,9 @@ xinyu-agent/
 - ✅ **P3a 完成（2026-11-12）**：新增 `web.py`（180 行：`search` / `search_sources` / `is_safe_url` / 七类错误码 / `register_tools`）与 `tests/test_web.py`(9)；`app.py` 启动时 `web.register_tools()`（注册 ≠ 暴露，`ALLOW_WEB` 默认 0），`_SECRET_KEYS` 补 `WEB_PROVIDER/WEB_API_KEY/WEB_ENDPOINT` 三键；出口：**159 passed**（150 + 9）/ 契约 11+5+20 / 冒烟假 transport 全绿（`docs/evidence/p3_smoke_2026-11-12.py`）；证据 `docs/evidence/P3-web-2026-11-12.md`
 - 🟨 **P3b 待做**：真实 provider（D-1）请求构造 + 一次真实 smoke + `.env` / Cloud Secrets 填 key；key 到位前 `web_search` 返回 `http_401`，`ALLOW_WEB=0` 时模型看不到该工具
 - ✅ **P4 完成（2026-11-12）**：新增 `guardian.guardian_tool_check`（四 reason：`ok` / `crisis_no_tool` / `unknown_tool` / `bad_args`，gate 异常 fail-closed）；`agent_loop` 接 `gate` + `source_filter`，`AgentResult.sources` 去重保序；`orchestrator._generate` 传门禁与 `web.search_sources`，loop 失败 `raise` 交 `safe_run` 走 L2 模板；`panel.render_trace` 侧栏「本轮编排」；`app` 渲染代码来源；`AGENT_LOOP` 默认翻 1（`=0` 仍回 v1）。出口：**166 passed**（159 + `test_tool_gate` 7）/ 契约 11+5+20 / 四指标不变；冒烟 `docs/evidence/p4_smoke_2026-11-12.py` 全绿；证据 `docs/evidence/P4-tool-gate-2026-11-12.md`
-- ⬜ **下一阶段 P5**：按 `docs/v2-steps/P5-style-layer.md` 做 `style.py` 口吻层（L3 模板逐字不变）
+- ✅ **P5a 完成（2026-11-12）**：新增 `style.py`（61 行：`polish` / `tone_hint` / 五人设贴纸 / 220 字截断）接入 `orchestrator`（仅 pass + 非模板兜底 + 非 L3 + 非 FALLBACK_LINE）；`agent._style_block` 追加 tone hint；新增 `tests/test_style.py`(9)；出口：**175 passed**（166 + 9）/ 契约 11+5+20 / 四指标不变；冒烟 32 项全绿（`docs/evidence/p5_smoke_2026-11-12.py`）；证据 `docs/evidence/P5-style-2026-11-12.md`
+- ⬜ **P5b 待人工**：5 人设 × 5 条盲读、3 人猜（目标 ≥3/5，可与 v1 人设盲读合并）；真实 key 下 L1/L2/L3 + 切 2 人设视觉检查（当前无 key，仅 MOCK）
+- ⬜ **下一阶段 P6**：回归 / 材料 / 演示；Gate A 前先补 P5b 与 v1 人工项
 
 **v1.0 基线（2026-11-08 冻结，数字以提交包解压实测为准）**
 
@@ -244,7 +246,7 @@ $env:MOCK_LLM="1"; .\.venv\Scripts\streamlit.exe run app.py    # 离线演示
 
 # 验
 .\.venv\Scripts\python.exe contract_check.py        # 期望 11/11 + 5/5 + 20/20
-.\.venv\Scripts\python.exe -m pytest -q             # 期望 166 passed（v2 P4 后）
+.\.venv\Scripts\python.exe -m pytest -q             # 期望 175 passed（v2 P5a 后）
 .\.venv\Scripts\python.exe -m pytest tests/test_guardian.py -q -k crisis
 ```
 
@@ -255,7 +257,7 @@ $env:MOCK_LLM="1"; .\.venv\Scripts\streamlit.exe run app.py    # 离线演示
 - **P2**：六条 agent-loop 用例全绿（150 passed）；破坏性验证三条做满
 - **P3**：P3a 七类错误码 + 9 条离线测试全绿（159 passed）；P3b 真实检索 smoke 等 key
 - **P4**：越权工具被拦；trace 不含原文；来源由代码渲染（166 passed）
-- **P5**：L3 模板逐字不变
+- **P5**：L3 / 模板兜底 / FALLBACK_LINE 逐字不变；175 passed；P5b 盲读 / 真机待人工
 - **P6**：Gate A 四份材料齐、数字与测试表对得上
 
 **Gate A**：文档 .docx、PPT 17 页、视频 300 秒 ≤100MB、仓库 public；首页写赛题一。**缺视频 = 丢 25 分。**

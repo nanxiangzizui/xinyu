@@ -9,18 +9,24 @@ P1 只做搬家：逻辑、顺序、日志字段、文案与 app.py 原实现逐
 from __future__ import annotations
 
 import logging
+import os
 import time
 
 import agent
+import agent_loop
 import coordinator
 import guardian
 import memory
+import tools as tools_mod
 from logger import log_turn, session_hash
 from roles import COOLDOWN, N_WINDOW
 
 logger = logging.getLogger(__name__)
 
 FALLBACK_LINE = "我这边刚刚卡了一下，但我在。你可以再说一句吗？"
+
+AGENT_LOOP = os.environ.get("AGENT_LOOP", "0") == "1"   # 出问题一键关回 v1
+ALLOW_WEB = os.environ.get("ALLOW_WEB", "0") == "1"     # P3 起才可能为真
 
 
 def _ms(t0: float) -> int:
@@ -53,6 +59,25 @@ def _timed(trace: list[dict], node: str, fn, *args, **kwargs):
         raise
     _node(trace, node, "ok", _ms(t0), _detail(out))
     return out
+
+
+def _generate(prompt: str, history: list[dict], role: str, level: str,
+              trace: list[dict]) -> dict:
+    """生成一步：AGENT_LOOP=0 走 v1 的 call_llm；=1 进受控工具循环。"""
+    t0 = time.perf_counter()
+    if not AGENT_LOOP:
+        out = agent.call_llm([{"role": "system", "content": prompt},
+                              *history[-10:]])
+        _node(trace, "generate", "ok", _ms(t0), "pipeline")
+        return out
+    tool_list = tools_mod.list_for_turn(role, level, allow_web=ALLOW_WEB)
+    res = agent_loop.run_agent(prompt, history[-10:], tool_list,
+                               fallback_text=FALLBACK_LINE)
+    _node(trace, "generate", "ok" if res.ok else "error", _ms(t0),
+          f"tools={res.tool_calls}")
+    # [SAFE] 形状对齐 call_llm：下游 guardian / 日志 / 兜底一行都不用改。
+    return {"text": res.text, "ok": res.ok, "error": res.error,
+            "tool_calls": res.tool_calls}
 
 
 def _mark_crisis(state: dict) -> None:
@@ -178,8 +203,7 @@ def handle(text: str, sid: str, history: list[dict], persona_id: str,
     lore = _timed(trace, "lore", memory.match_lore, text, sid)     # 3 找事实（sid 用于同会话限次）
     prompt = _timed(trace, "prompt", agent.build_system_prompt,    # 4 拼 prompt
                     persona_id, facts, lore)
-    resp = _timed(trace, "generate", agent.call_llm,               # 5 生成
-                  [{"role": "system", "content": prompt}, *history[-10:]])
+    resp = _generate(prompt, history, dec["role"], eff_level, trace)   # 5 生成
     post = _timed(trace, "post_check", guardian.guardian_post_check,   # 6 审
                   text, resp.get("text", ""), eff_level, dec["role"])
     reply = post.get("fixed_reply") or resp.get("text") or FALLBACK_LINE

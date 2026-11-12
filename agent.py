@@ -134,6 +134,36 @@ def call_llm(messages: list[dict], temperature: float = 0.7) -> dict:
         return {"text": "", "ok": False, "error": type(exc).__name__, "latency_ms": _ms(t0)}
 
 
+def chat_with_tools(messages: list[dict], tools: list[dict],
+                    temperature: float = 0.7) -> dict:
+    """带工具的调用；返回 {"text","tool_calls","ok","error","usage"}，异常不外抛。"""
+    if _is_mock():
+        return {"text": _mock(messages)["text"], "tool_calls": [], "ok": True,
+                "error": "", "usage": {}}
+    t0 = time.time()
+    try:
+        resp = _get_client().chat.completions.create(
+            model=os.getenv("LLM_MODEL", "deepseek-chat"), messages=messages, tools=tools,
+            tool_choice="auto" if tools else "none", temperature=temperature)
+    except Exception as exc:                       # 边界 1/4：LLM 调用，一次失败交回 loop 兜底
+        logger.warning("agent.tools_failed error=%s latency_ms=%s",
+                       type(exc).__name__, _ms(t0))
+        return {"text": "", "tool_calls": [], "ok": False,
+                "error": type(exc).__name__, "usage": {}}
+    msg = resp.choices[0].message
+    calls = []
+    for call in msg.tool_calls or []:
+        try:
+            args = json.loads(call.function.arguments or "{}")
+        except (ValueError, TypeError):            # 边界：坏 JSON 当坏参数，交给 execute 拒
+            args = {}
+        calls.append({"id": call.id, "name": call.function.name, "arguments": args})
+    usage = getattr(resp, "usage", None)
+    return {"text": msg.content or "", "tool_calls": calls, "ok": True, "error": "",
+            "usage": {"prompt_tokens": getattr(usage, "prompt_tokens", 0),
+                      "completion_tokens": getattr(usage, "completion_tokens", 0)}}
+
+
 def safe_json(text: str) -> dict | None:
     """剥掉 markdown 围栏后解析。失败返回 None（调用方按中风险处理，不许当无事）。"""
     if not text:

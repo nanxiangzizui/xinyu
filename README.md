@@ -10,7 +10,7 @@
 | | |
 |---|---|
 | 计划 | ✅ 执行书已冻结（文件内版本 v1.2）|
-| 代码 | 🟨 S1 完成、S2 主体落地（`v0.2` 已打）、S13–S26 完成（`v0.3`、`v1.0` 已打）：`pytest` **159 passed**（v1 基线 132 + v2 P1 新增 5 + P2 新增 13 + P3 新增 9），`contract_check` **11/11 + 5/5 + 20/20**，12 条端到端场景 + 12 条对话 + 8 条故障注入通过，28 条规则用例逐条编号；四指标 10/10、0/20、12/12、10/10；S2 还剩人设/危机文案盲读 |
+| 代码 | 🟨 S1 完成、S2 主体落地（`v0.2` 已打）、S13–S26 完成（`v0.3`、`v1.0` 已打）：`pytest` **166 passed**（v1 基线 132 + v2 P1 新增 5 + P2 新增 13 + P3 新增 9 + P4 新增 7），`contract_check` **11/11 + 5/5 + 20/20**，12 条端到端场景 + 12 条对话 + 8 条故障注入通过，28 条规则用例逐条编号；四指标 10/10、0/20、12/12、10/10；S2 还剩人设/危机文案盲读 |
 | 材料 | ✅ 四份齐：[项目文档](docs/01_项目文档.docx)（**26 页**，正文 15 页 + 附录 A–D）· [项目方案](docs/02_项目方案.pptx)（**17 页**）· [演示视频](docs/03_演示视频.mp4)（**300 秒**，含断网仍出危机卡）· [原型说明](docs/04_原型说明.md)；提交包已打并解压实测（109 文件，132 passed），现场彩排待做 |
 | 交付 | 4 周出可演示版本 + 3 天材料期，6 人小队 |
 | 赛事 | 杭州电子科技大学第二届 AIGC 应用创新大赛 · **赛题一（AI 辅助开发·创意产品原型）** |
@@ -74,27 +74,27 @@ pytest -q
 心屿/
 ├─ 心屿MindIsle_工程执行书_v1.0.md   ← 唯一执行依据
 ├─ README.md                          ← 本文件
-├─ app.py            Streamlit 页面：聊天 / 侧栏 / 免责声明 / 资源卡
+├─ app.py            Streamlit 页面：聊天 / 侧栏 / 免责声明 / 资源卡 / 代码来源链接
 ├─ orchestrator.py   ★v2 P1：七步编排 + 9 节点 trace + 异常兜底（页面只调 safe_run）
-├─ agent_loop.py     ★v2 P2：受控工具循环（步数 / 工具次数 / 总超时）
+├─ agent_loop.py     ★v2 P2/P4：受控工具循环（步数 / 工具次数 / 总超时 / 门禁 / 来源过滤）
 ├─ tools.py          ★v2 P2：白名单 / schema / 执行 / 超时 / 大小上限
 ├─ web.py            ★v2 P3a：web_search（scrub / 七类错误码 / 来源校验）
 ├─ agent.py          call_llm / build_system_prompt / safe_json / 重试 / MOCK 剧本（生成 / 摘要 / 复核 / 重写）
 ├─ roles.py          5 套人设卡 + RULES 20 条（唯一来源）
 ├─ coordinator.py    三角色状态机 + 会话聚合 + 只升不降
-├─ guardian.py       规则扫描 → 豁免 → 分级 → 复核 → 重写 / 复检 / 安全兜底（短路在 orchestrator.py）
+├─ guardian.py       规则扫描 → 豁免 → 分级 → 复核 → 重写 / 复检 / 安全兜底 / 工具门禁（短路在 orchestrator.py）
 ├─ memory.py         白名单读写 + 摘要节流 + 脱敏 + 备份 + 坏文件自愈 + 一键清空 + 迷你 Lorebook
 ├─ resources.py      情绪标签 → 资源卡
 ├─ logger.py         结构化日志（9 字段，不写用户原文）
-├─ panel.py          记忆面板：8 字段只读 / 两字段编辑 / 导出 / 二次确认清空
+├─ panel.py          记忆面板（8 字段只读 / 两字段编辑 / 导出 / 清空）+ 本轮编排 trace（P4）
 ├─ theme.py          三套配色 sakura / matcha / sunset + CSS 变量注入
 ├─ metrics.py        四指标脚本（只读测试集，不调模型）
 ├─ contract_check.py 11 个签名 + 5 个常量 + 20 条规则校验
 ├─ step/             S01–S26 分步执行手册（v1 历史，只读）
 ├─ tests/            test_guardian(52) / test_memory(26) / test_flow(21) / test_theme(7)
 │                    test_agent(6) / test_roles(6) / test_log(2) / test_fault(8) / test_metrics(4)
-│                    test_orchestrator(5) / test_tools(7) / test_agent_loop(6) / test_web(9)（v2 P1–P3a）
-│                    —— 合计 159（考核要求 48）
+│                    test_orchestrator(5) / test_tools(7) / test_agent_loop(6) / test_web(9) / test_tool_gate(7)（v2 P1–P4）
+│                    —— 合计 166（考核要求 48）
 ├─ data/memory/      memory.json（不进仓库）
 └─ docs/             项目文档、PPT、证据、比赛要求
    └─ v2-steps/      P1–P6 编排式单 Agent 分步执行手册（v2 增量）

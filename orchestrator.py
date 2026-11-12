@@ -18,6 +18,7 @@ import agent_loop
 import coordinator
 import guardian
 import memory
+import style
 import tools as tools_mod
 import web
 from logger import log_turn, session_hash
@@ -215,6 +216,10 @@ def handle(text: str, sid: str, history: list[dict], persona_id: str,
     post = _timed(trace, "post_check", guardian.guardian_post_check,   # 6 审
                   text, resp.get("text", ""), eff_level, dec["role"])
     reply = post.get("fixed_reply") or resp.get("text") or FALLBACK_LINE
+    # [SAFE] 只润色复核通过的模型输出；模板兜底、L3、兜底句逐字不动。
+    if (post["pass"] and not post.get("template_fallback")
+            and eff_level != "L3" and reply != FALLBACK_LINE):
+        reply = style.polish(reply, persona_id, eff_level)
     _timed(trace, "memory_write", memory.update_memory, sid, text, reply)  # 7 记
     _maybe_compress(sid, eff_level, dec["role"], history, t0, state)   # 7.5 摘要节流
     return _log_and_result(sid, pre, dec, eff_level, escalated,

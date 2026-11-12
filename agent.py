@@ -10,6 +10,7 @@ import time
 from dotenv import load_dotenv
 from openai import OpenAI
 
+import style
 from roles import BOUNDARIES_COMMON, PERSONAS, SAFETY_BLOCK, TIMEOUT
 
 # 入口只加载一次；默认不覆盖已有环境变量，否则 monkeypatch 与环境隔离都会失效。
@@ -205,7 +206,7 @@ def _facts_block(memory: dict, lore: list[str]) -> str:
     return "\n".join(rows)
 
 
-def _style_block(p: dict) -> str:
+def _style_block(p: dict, persona_id: str) -> str:
     """风格区只改四样：称呼 / 语气 / 句长 / emoji，外加 taboos 与示例。"""
     lines = [
         f"你是「{p['name']}」，称呼对方为「{p['address']}」。",
@@ -216,7 +217,8 @@ def _style_block(p: dict) -> str:
     ]
     for user_text, bot_text in p["mes_example"]:
         lines.append(f"用户：{user_text}\n你：{bot_text}")
-    return "\n".join(lines)
+    hint = style.tone_hint(persona_id)
+    return "\n".join(lines) + ("\n" + hint if hint else "")
 
 
 def build_system_prompt(persona_id: str, memory: dict, lore: list[str]) -> str:
@@ -225,10 +227,11 @@ def build_system_prompt(persona_id: str, memory: dict, lore: list[str]) -> str:
     安全区在最前（模型对开头最敏感），PHI 在最后（紧贴用户输入）。
     事实区是唯一可能为空的一段：空了整段省略，不留空标题。
     """
-    p = PERSONAS.get(persona_id) or PERSONAS["sister_heart"]
+    persona_key = persona_id if persona_id in PERSONAS else "sister_heart"
+    p = PERSONAS[persona_key]
     parts = [
         "[安全守则]\n" + SAFETY_BLOCK + "\n[说话边界]\n" + BOUNDARIES_COMMON,
-        "[你的说话方式]\n" + _style_block(p),
+        "[你的说话方式]\n" + _style_block(p, persona_key),
     ]
     facts = _facts_block(memory if isinstance(memory, dict) else {}, lore or [])
     if facts:

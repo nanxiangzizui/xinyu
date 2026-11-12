@@ -14,6 +14,7 @@ from streamlit.testing.v1 import AppTest
 import agent
 import memory
 import pipeline
+import style
 from guardian import SAFE_FALLBACK, guardian_post_check
 from pipeline import Chat, FALLBACK_LINE, memory_of, memory_path, reply_rows
 
@@ -53,7 +54,7 @@ def test_f02_non_json_reply_is_rechecked_not_crashed(monkeypatch):
     monkeypatch.setattr(agent, "chat_with_tools", gen)
     chat = Chat()
     reply = chat.say("今天有点累")
-    assert reply == "我在听。"
+    assert reply == style.polish("我在听。", "sister_heart", "L1")
     row = reply_rows(chat.sid)[-1]
     assert (row["action"], row["rewrite"]) == ("rewrite", 1)
 

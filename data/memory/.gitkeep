@@ -1,0 +1,2 @@
+# 占位文件：让空的 memory 目录能被 git 跟踪。
+# 本目录存放 data/memory/<session>.json，已被 .gitignore 排除，绝不入库。

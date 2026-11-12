@@ -50,12 +50,12 @@
 | P0 | 基线复跑 + DeepSeek `tools` 能力探测 | ✅ | 探测结果进 `docs/evidence/`；132 passed + 契约全绿 |
 | P1 | `app.py` 的 `handle` / `safe_handle` 搬进 `orchestrator.py` | ✅ | **行为零变化**；132 旧 + 5 新 = 137 passed；C-01 / C-05 / C-09 不变 |
 | P2 | `agent_loop.py` + `tools.py`（先接 echo / fake_search 假工具） | ✅ | 直接答 / 一次工具后答 / 步数超限 / 工具次数超限 / 工具报错 / 未知工具 / L3 不循环，六条全绿；**137 旧 + 13 新 = 150 passed** |
-| P3 | `web.py` 网络工具（搜索 / 图片 / 风格包） | ⬜ | 真实检索 smoke；超时 / 401 / 坏 JSON 有兜底；日志不写 query |
+| P3 | `web.py` 网络工具（搜索 / 图片 / 风格包） | 🟨 | P3a：七类错误码 9 条离线测试全绿（159 passed）、`web.py` 180 行；P3b 真实 provider smoke 等 key |
 | P4 | `guardian_tool_check` 接进 loop + 侧栏"本轮编排" | ⬜ | 越权工具被拦；trace 不含原文；来源链接由代码渲染 |
 | P5 | `style.py` 风格层（口吻 / 句尾 / 贴纸） | ⬜ | L3 模板逐字不变；L2 稳重；L1 口语化；贴纸不越界 |
 | P6 | 回归 / 材料 / 演示 | ⬜ | Gate A 仍成立；v2.0 可演示；docx / PPT / 视频数字回填 |
 
-**P0–P2 是"agent-lite"，必须做完**；P3 起依赖网络方案决策（provider / MCP / key），没定之前只做假工具。
+**P0–P2 是"agent-lite"，必须做完**；P3a 不依赖 key，已完成；P3b 真实检索等 D-1（provider / key）。
 
 ### 2.3 v2 预算常量（进常量区，测试断言"超限会停"，不靠模型自觉）
 
@@ -141,7 +141,9 @@ xinyu-agent/
 - 📝 **P3 内容检索候选设计（2026-11-12，未决策）**：`docs/v2-steps/P3-content-retrieval-design.md` 记录“本地轻量识别 → orchestrator 路由 → MCP/HTTP 取风格 / 贴纸 / 图片”的三层想法；明确 skill 不是运行时能力、host 就是 orchestrator、MCP 只能作白名单工具后端；**不改计划书与 D-1~D-5，P3b 仍等 D-1**
 - ✅ **P1 完成（2026-11-12）**：`orchestrator.py`（186 行）接管七步编排 + 9 节点 trace + 异常兜底，`safe_handle` 改名 `safe_run`；`app.py` 326→174 行只留 UI；**137 passed**（132 旧 + `test_orchestrator` 5 新）、`contract_check` 11/11 + 5/5 + 20/20、`metrics` 四指标不变；证据 `docs/evidence/P1-orchestrator-2026-11-12.md`。唯一与文档偏差：P1 文档 §6 示例用 `handle` 断言兜底，实际按 §5.1 改用 `safe_run`
 - ✅ **P2 完成（2026-11-12）**：新增 `tools.py`（133 行：ToolSpec/ToolResult/REGISTRY/execute/list_for_turn/echo/fake_search）、`agent_loop.py`（112 行：run_agent + 预算常量）、`agent.chat_with_tools`（+30 行）、`orchestrator._generate`（`AGENT_LOOP=0` 走 v1 call_llm，`=1` 进受控 loop）；新增 `tests/test_tools.py`(7) + `tests/test_agent_loop.py`(6)。出口：**150 passed** / 契约 11+5+20 / 四指标不变；冒烟（AGENT_LOOP=1+MOCK）L3 trace 无 generate、日志 9 字段无原文；证据 `docs/evidence/P2-agent-loop-2026-11-12.md`。`AGENT_LOOP` 默认 0，旧测试零改动。
-- ⬜ **下一阶段 P3（等 D-1 provider 决策）**：按 `docs/v2-steps/P3-web-search.md` 做 `web.py`（真实检索先等 provider / key 决策；假 transport 可先写）
+- ✅ **P3a 完成（2026-11-12）**：新增 `web.py`（180 行：`search` / `search_sources` / `is_safe_url` / 七类错误码 / `register_tools`）与 `tests/test_web.py`(9)；`app.py` 启动时 `web.register_tools()`（注册 ≠ 暴露，`ALLOW_WEB` 默认 0），`_SECRET_KEYS` 补 `WEB_PROVIDER/WEB_API_KEY/WEB_ENDPOINT` 三键；出口：**159 passed**（150 + 9）/ 契约 11+5+20 / 冒烟假 transport 全绿（`docs/evidence/p3_smoke_2026-11-12.py`）；证据 `docs/evidence/P3-web-2026-11-12.md`
+- 🟨 **P3b 待做**：真实 provider（D-1）请求构造 + 一次真实 smoke + `.env` / Cloud Secrets 填 key；key 到位前 `web_search` 返回 `http_401`，`ALLOW_WEB=0` 时模型看不到该工具
+- ⬜ **下一阶段 P4**：按 `docs/v2-steps/P4-guardian-tool-gate.md` 做 `guardian_tool_check` 接进 loop + 侧栏"本轮编排"
 
 **v1.0 基线（2026-11-08 冻结，数字以提交包解压实测为准）**
 
@@ -241,7 +243,7 @@ $env:MOCK_LLM="1"; .\.venv\Scripts\streamlit.exe run app.py    # 离线演示
 
 # 验
 .\.venv\Scripts\python.exe contract_check.py        # 期望 11/11 + 5/5 + 20/20
-.\.venv\Scripts\python.exe -m pytest -q             # 期望 150 passed（v2 P2 后）
+.\.venv\Scripts\python.exe -m pytest -q             # 期望 159 passed（v2 P3a 后）
 .\.venv\Scripts\python.exe -m pytest tests/test_guardian.py -q -k crisis
 ```
 
@@ -250,7 +252,7 @@ $env:MOCK_LLM="1"; .\.venv\Scripts\streamlit.exe run app.py    # 离线演示
 - **P0**：探测结果落证据；132 passed；契约全绿
 - **P1**：行为零变化；132 旧用例全绿（加 5 条新用例 = 137 passed）；C-01 / C-05 / C-09 不变
 - **P2**：六条 agent-loop 用例全绿（150 passed）；破坏性验证三条做满
-- **P3**：真实检索 smoke 通过；超时 / 401 / 坏 JSON 都有兜底
+- **P3**：P3a 七类错误码 + 9 条离线测试全绿（159 passed）；P3b 真实检索 smoke 等 key
 - **P4**：越权工具被拦；trace 不含原文
 - **P5**：L3 模板逐字不变
 - **P6**：Gate A 四份材料齐、数字与测试表对得上

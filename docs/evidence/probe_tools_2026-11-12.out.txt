@@ -1,0 +1,30 @@
+model=deepseek-chat base_url=https://api.deepseek.com
+
+=== case 1: 普通请求（不带 tools） ===
+ok: True
+latency_ms: 1238
+finish_reason: stop
+has_tool_calls: False
+n_tool_calls: 0
+tool_names: []
+args_json_ok: []
+parse_error: 
+content: 这取决于你所在地区的天气和空气质量，建议查看当地预报后再决定。
+
+=== case 2: 请求携带 1 个 echo 工具 ===
+ok: True
+latency_ms: 997
+finish_reason: tool_calls
+has_tool_calls: True
+n_tool_calls: 1
+tool_names: ['echo']
+args_json_ok: [True]
+parse_error: 
+content: 
+
+=== case 3: 回填 tool 结果再问一次（两跳闭环） ===
+ok: True
+latency_ms: 1517
+finish_reason: stop
+has_tool_calls: False
+content: 已调用 echo 工具，返回结果：`hello`

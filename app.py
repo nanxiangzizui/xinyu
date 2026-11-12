@@ -43,7 +43,8 @@ _bridge_secrets()
 from logger import session_hash                                  # noqa: E402  顺序要紧
 from memory import clear_memory                                  # noqa: E402
 from orchestrator import safe_run                                # noqa: E402
-from panel import LEVEL_LABELS, REASON_LABELS, ROLE_LABELS, render_panel  # noqa: E402
+from panel import (LEVEL_LABELS, REASON_LABELS, ROLE_LABELS,  # noqa: E402
+                   render_panel, render_trace)
 from resources import pick_resources                             # noqa: E402
 from theme import inject_theme, theme_picker                     # noqa: E402
 import web                                                        # noqa: E402
@@ -88,6 +89,10 @@ def _render_history(messages: list[dict]) -> None:
     for msg in messages:
         with st.chat_message(msg["role"]):
             st.markdown(msg["content"])
+            for src in msg.get("sources") or []:
+                # 来源只来自 web.search_sources 的代码过滤结果，模型正文里不解析链接。
+                if src.get("url"):
+                    st.markdown(f"- [{src.get('title') or src['url']}]({src['url']})")
 
 
 def _clear(sid: str) -> None:
@@ -97,6 +102,7 @@ def _clear(sid: str) -> None:
     except OSError as exc:                          # 边界：删不掉也不许崩页面
         logger.warning("clear_failed session=%s error=%s", sid[:6], type(exc).__name__)
     st.session_state.messages = []
+    st.session_state["last_trace"] = []
     st.session_state["degraded"] = False
     st.session_state["turn"] = 0
     # 清空对话 = 开新会话：冷却与“有过危机”标记必须一起归零，否则新对话永远回不到 guide。
@@ -125,6 +131,7 @@ def _sidebar(sid: str) -> None:
         if st.session_state.get("degraded"):
             st.caption(NET_HINT)
         render_panel(sid, _clear)
+        render_trace(st.session_state.get("last_trace"))
 
 
 def main() -> None:
@@ -146,6 +153,7 @@ def main() -> None:
                          ("last_reason", "default"), ("turn", 0),
                          ("levels", [])):
         st.session_state.setdefault(key, default)
+    st.session_state.setdefault("last_trace", [])
 
     _render_history(st.session_state.messages)
 
@@ -164,7 +172,10 @@ def main() -> None:
             # 卡只渲染在本轮，不写进 messages，刷新重绘时不会重复弹（S21 #4 补的口径）。
             for card in pick_resources(result["level"], []):
                 st.info(f"{card['title']}：{card['detail']}")
-        st.session_state.messages.append({"role": "assistant", "content": result["reply"]})
+        st.session_state.messages.append({
+            "role": "assistant", "content": result["reply"],
+            "sources": result.get("sources") or []})
+        st.session_state["last_trace"] = result.get("trace", [])
         st.session_state["degraded"] = result["degraded"]
         st.session_state["last_role"] = result["role"]
         st.session_state["last_level"] = result["level"]

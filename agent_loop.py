@@ -6,11 +6,14 @@
 from __future__ import annotations
 
 import json
+import logging
 import time
 from dataclasses import dataclass, field
 
 import agent
 import tools
+
+logger = logging.getLogger(__name__)
 
 AGENT_MAX_STEPS = 3
 AGENT_MAX_TOOL_CALLS = 2
@@ -23,6 +26,7 @@ class AgentResult:
     """一轮生成的最终结果；text 为空时由 orchestrator 用 FALLBACK_LINE 兜底。"""
     text: str = ""
     tool_calls: int = 0
+    sources: list = field(default_factory=list)
     trace: list = field(default_factory=list)
     usage: dict = field(default_factory=dict)
     ok: bool = False
@@ -52,7 +56,33 @@ def _payload(res: tools.ToolResult) -> str:
     return f"{tools.RESULT_NOTE}\n{json.dumps(res.data, ensure_ascii=False, default=str)}"
 
 
-def _run_calls(calls: list[dict], msgs: list[dict], result: AgentResult, gate) -> int:
+def _safe_sources(source_filter, data) -> list:
+    """来源过滤失败只丢来源：过滤的是不可信工具结果，不许它把整轮回答拖崩。"""
+    if source_filter is None:
+        return []
+    try:
+        return list(source_filter(data) or [])
+    except Exception as exc:                       # 边界：工具结果不可信
+        logger.info("source_filter_failed error=%s", type(exc).__name__)
+        return []
+
+
+def _dedup(sources: list, limit: int = 3) -> list:
+    """按 url 去重并保序；source 由代码过滤，模型无权提供。"""
+    out, seen = [], set()
+    for src in sources or []:
+        url = src.get("url") if isinstance(src, dict) else None
+        if not url or url in seen:
+            continue
+        seen.add(url)
+        out.append(src)
+        if len(out) >= limit:
+            break
+    return out
+
+
+def _run_calls(calls: list[dict], msgs: list[dict], result: AgentResult, gate,
+               source_filter=None) -> int:
     """执行一轮里的工具调用；预算/门禁在每次 execute 之前判。返回实际执行数。"""
     done = 0
     for call in calls:
@@ -72,6 +102,8 @@ def _run_calls(calls: list[dict], msgs: list[dict], result: AgentResult, gate) -
         res = tools.execute(name, args)
         result.tool_calls += 1
         done += 1
+        if res.ok:
+            result.sources.extend(_safe_sources(source_filter, res.data))
         msgs.append(_tool_msg(cid, _payload(res)))
     return done
 
@@ -79,12 +111,13 @@ def _run_calls(calls: list[dict], msgs: list[dict], result: AgentResult, gate) -
 def _fail(result: AgentResult, error: str) -> AgentResult:
     """统一失败出口：ok=False + 错误码；text 保留兜底文本。"""
     result.ok, result.error = False, error
+    result.sources = _dedup(result.sources)
     return result
 
 
 def run_agent(system_prompt: str, history: list[dict], tool_list: list[dict],
               max_steps: int = AGENT_MAX_STEPS, *, chat=None, gate=None,
-              fallback_text: str = "",
+              source_filter=None, fallback_text: str = "",
               deadline_s: float = AGENT_TOTAL_TIMEOUT_S) -> AgentResult:
     """受控循环：模型答 → 有 tool_calls 就执行并回填 → 再问，直到答或预算用尽。"""
     chat = chat or agent.chat_with_tools
@@ -103,10 +136,11 @@ def run_agent(system_prompt: str, history: list[dict], tool_list: list[dict],
         text, calls = (out.get("text") or "").strip(), out.get("tool_calls") or []
         if not calls:
             result.text, result.ok = text or fallback_text, True
+            result.sources = _dedup(result.sources)
             result.trace.append({"step": step + 1, "action": "answer", "tools": 0})
             return result
         result.usage = out.get("usage") or result.usage
         msgs.append(_assistant_msg(text, calls))
-        done = _run_calls(calls, msgs, result, gate)
+        done = _run_calls(calls, msgs, result, gate, source_filter)
         result.trace.append({"step": step + 1, "action": "tools", "tools": done})
     return _fail(result, "max_steps")

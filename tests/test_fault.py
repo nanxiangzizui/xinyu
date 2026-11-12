@@ -25,7 +25,7 @@ def test_f01_timeout_becomes_human_line_and_logged(monkeypatch):
     def boom(*args, **kwargs):
         raise TimeoutError()
 
-    monkeypatch.setattr(agent, "call_llm", boom)
+    monkeypatch.setattr(agent, "chat_with_tools", boom)
     chat = Chat()
     reply = chat.say("我今天很累")
     assert reply == FALLBACK_LINE
@@ -46,6 +46,11 @@ def test_f02_non_json_reply_is_rechecked_not_crashed(monkeypatch):
         return {"text": "我在听。", "ok": True, "latency_ms": 1}
 
     monkeypatch.setattr(agent, "call_llm", plain)
+
+    def gen(messages, tool_list):
+        return {"text": "我在听。", "tool_calls": [], "ok": True}
+
+    monkeypatch.setattr(agent, "chat_with_tools", gen)
     chat = Chat()
     reply = chat.say("今天有点累")
     assert reply == "我在听。"

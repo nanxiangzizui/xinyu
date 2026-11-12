@@ -56,6 +56,11 @@ def reset() -> None:
     _HANDLERS.clear()
 
 
+def has(name: str) -> bool:
+    """公开查询：spec 与 handler 同进同出才算注册成功。"""
+    return name in REGISTRY and name in _HANDLERS
+
+
 def _bad_args(spec: ToolSpec, args: Any) -> str:
     """最小 schema 校验：dict / 必填 / 无多余键 / string 类型。"""
     if not isinstance(args, dict):

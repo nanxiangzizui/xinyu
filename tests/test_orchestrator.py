@@ -21,6 +21,7 @@ def test_l3_short_circuits_before_agent(monkeypatch):
         raise AssertionError("L3 不许调模型")
 
     monkeypatch.setattr(agent, "call_llm", boom)
+    monkeypatch.setattr(agent, "chat_with_tools", boom)
     res = orchestrator.handle("我不想活了", "t1", [], "sister_heart", {})
     assert (res["level"], res["role"], res["short_circuit"]) == ("L3", "crisis", True)
     assert res["reply"] == guardian.CRISIS_REPLY
@@ -35,10 +36,11 @@ def test_node_order_is_unchanged():
 
 
 def test_exception_becomes_fallback_and_logged(monkeypatch):
-    """生成抛异常 → 一句人话 + L2 + PIPELINE_FAILED，绝不按 L1 记。"""
+    """生成抛异常 → 一句人话 + L2 + PIPELINE_FAILED；开关两条分支都走同一兜底。"""
     def boom(*args, **kwargs):
         raise TimeoutError()
 
+    monkeypatch.setattr(agent, "chat_with_tools", boom)
     monkeypatch.setattr(agent, "call_llm", boom)
     # 兜底只在 safe_run（handle 按 §5.1 让异常上抛，节点层不许吞）。
     res = orchestrator.safe_run("今天很累", "t3", [], "sister_heart", {})
@@ -47,6 +49,14 @@ def test_exception_becomes_fallback_and_logged(monkeypatch):
     row = pipeline.reply_rows("t3")[-1]
     assert (row["level"], row["action"], row["rule_ids"]) == (
         "L2", "template_fallback", ["PIPELINE_FAILED"])
+
+    # AGENT_LOOP=0 是回退开关：行为必须与 v1 管线一致（同样是兜底 + 留痕）。
+    monkeypatch.setattr(orchestrator, "AGENT_LOOP", False)
+    old = orchestrator.safe_run("今天很累", "t3v1", [], "sister_heart", {})
+    assert (old["reply"], old["level"], old["role"], old["degraded"]) == (
+        orchestrator.FALLBACK_LINE, "L2", "listener", True)
+    row = pipeline.reply_rows("t3v1")[-1]
+    assert (row["action"], row["rule_ids"]) == ("template_fallback", ["PIPELINE_FAILED"])
 
 
 def test_trace_and_log_carry_no_user_text():

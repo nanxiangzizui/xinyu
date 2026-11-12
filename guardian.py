@@ -6,6 +6,7 @@ import threading
 import time
 
 import agent
+import tools
 from roles import COMPILED, RULES
 
 # 切小句：中英文标点都要覆盖。豁免只在一个小句内生效，绝不跨句。
@@ -303,3 +304,24 @@ def guardian_post_check(user_text: str, reply: str, level: str, role: str, rewri
     return {"pass": False, "reason": ",".join(bad),
             "fixed_reply": SAFE_FALLBACK.get(role) or SAFE_FALLBACK["listener"],
             "rewrite": 1 if fixed else 0, "template_fallback": True}
+
+TOOL_DENY_LEVELS = frozenset({"L3"})
+
+
+def guardian_tool_check(name: str, args: dict, role: str = "",
+                        level: str = "") -> dict:
+    """工具门禁：只回答 allow/reason，不看工具结果、不改风险等级。
+
+    [SAFE] 失败即拒绝：危机轮、查不到白名单、参数不对一律不放行。
+    这里不接受模型给的理由，也不因工具结果“看起来无害”而放行。
+    """
+    if level in TOOL_DENY_LEVELS or role == "crisis":
+        return {"allow": False, "reason": "crisis_no_tool"}
+    if not tools.has(name):
+        return {"allow": False, "reason": "unknown_tool"}
+    if not isinstance(args, dict):
+        return {"allow": False, "reason": "bad_args"}
+    required = (tools.REGISTRY[name].parameters or {}).get("required") or []
+    if any(key not in args for key in required):
+        return {"allow": False, "reason": "bad_args"}
+    return {"allow": True, "reason": "ok"}

@@ -116,3 +116,25 @@ def render_panel(sid: str, on_clear) -> None:
         if st.checkbox("我确认要清除全部记忆", key=f"panel_confirm_{sid}"):
             if st.button("清除", type="primary", key=f"panel_clear_{sid}"):
                 on_clear(sid)
+
+NODE_LABELS = {
+    "pre_check": "判危", "aggregate": "聚合", "coordinator": "路由",
+    "cooldown": "冷却", "lore": "记忆命中", "prompt": "拼 prompt",
+    "generate": "生成", "post_check": "复核", "memory_write": "写记忆",
+    "short_circuit": "危机短路",
+}
+STATUS_LABELS = {"ok": "✅", "error": "⚠️"}
+
+
+def render_trace(trace: list[dict] | None) -> None:
+    """侧栏“本轮编排”：只展示节点名/耗时/等级角色状态，不展示原文。"""
+    with st.expander("本轮编排", expanded=False):
+        if not trace:
+            st.caption("本轮没有编排记录")
+            return
+        for item in trace:
+            node = NODE_LABELS.get(item.get("node", ""), item.get("node", "?"))
+            status = STATUS_LABELS.get(item.get("status", ""), item.get("status", ""))
+            detail = item.get("detail") or ""
+            st.markdown(f"{status} `{node}` {item.get('latency_ms', 0)} ms"
+                        + (f" · {detail}" if detail else ""))

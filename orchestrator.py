@@ -8,6 +8,7 @@ P1 只做搬家：逻辑、顺序、日志字段、文案与 app.py 原实现逐
 """
 from __future__ import annotations
 
+import functools
 import logging
 import os
 import time
@@ -18,6 +19,7 @@ import coordinator
 import guardian
 import memory
 import tools as tools_mod
+import web
 from logger import log_turn, session_hash
 from roles import COOLDOWN, N_WINDOW
 
@@ -25,7 +27,7 @@ logger = logging.getLogger(__name__)
 
 FALLBACK_LINE = "我这边刚刚卡了一下，但我在。你可以再说一句吗？"
 
-AGENT_LOOP = os.environ.get("AGENT_LOOP", "0") == "1"   # 出问题一键关回 v1
+AGENT_LOOP = os.environ.get("AGENT_LOOP", "1") == "1"   # 出问题一键关回 v1
 ALLOW_WEB = os.environ.get("ALLOW_WEB", "0") == "1"     # P3 起才可能为真
 
 
@@ -71,13 +73,18 @@ def _generate(prompt: str, history: list[dict], role: str, level: str,
         _node(trace, "generate", "ok", _ms(t0), "pipeline")
         return out
     tool_list = tools_mod.list_for_turn(role, level, allow_web=ALLOW_WEB)
-    res = agent_loop.run_agent(prompt, history[-10:], tool_list,
+    # [SAFE] 门禁由 orchestrator 注入：guardian 只看工具名/参数，工具结果说服不了它。
+    gate = functools.partial(guardian.guardian_tool_check, role=role, level=level)
+    res = agent_loop.run_agent(prompt, history[-10:], tool_list, gate=gate,
+                               source_filter=web.search_sources,
                                fallback_text=FALLBACK_LINE)
     _node(trace, "generate", "ok" if res.ok else "error", _ms(t0),
           f"tools={res.tool_calls}")
-    # [SAFE] 形状对齐 call_llm：下游 guardian / 日志 / 兜底一行都不用改。
-    return {"text": res.text, "ok": res.ok, "error": res.error,
-            "tool_calls": res.tool_calls}
+    if not res.ok:
+        # [SAFE] 循环失败不许当正常回复往下发：交给 safe_run 统一走 L2 + 兜底。
+        raise RuntimeError(f"agent_loop:{res.error}")
+    # 形状对齐 call_llm；sources 只由 web.search_sources 的代码过滤结果提供。
+    return {"text": res.text, "ok": True, "sources": res.sources}
 
 
 def _mark_crisis(state: dict) -> None:
@@ -177,6 +184,7 @@ def _log_and_result(sid: str, pre: dict, dec: dict, eff_level: str, escalated: b
         "reason": dec["reason"],
         # 只看字符串会把“模型失败、guardian 换成安全兜底”误判成正常回复（S13 起会发生）。
         "degraded": (not resp.get("ok", False)) or reply == FALLBACK_LINE,
+        "sources": resp.get("sources") or [],
         "trace": trace,
     }
 

@@ -18,7 +18,8 @@ load_dotenv()
 # 线上（Streamlit Cloud）没有 .env，密钥只放在平台的 Secrets 里，读法是 `st.secrets`，
 # 不是环境变量。必须在 import memory / agent 之前铺好：memory.py 的 DATA_DIR 是模块级常量。
 _SECRET_KEYS = ("LLM_API_KEY", "LLM_BASE_URL", "LLM_MODEL", "MOCK_LLM",
-                "DATA_DIR", "LOG_DIR")
+                "DATA_DIR", "LOG_DIR",
+                "WEB_PROVIDER", "WEB_API_KEY", "WEB_ENDPOINT")
 
 
 def _bridge_secrets() -> None:
@@ -45,6 +46,7 @@ from orchestrator import safe_run                                # noqa: E402
 from panel import LEVEL_LABELS, REASON_LABELS, ROLE_LABELS, render_panel  # noqa: E402
 from resources import pick_resources                             # noqa: E402
 from theme import inject_theme, theme_picker                     # noqa: E402
+import web                                                        # noqa: E402
 
 logger = logging.getLogger(__name__)
 
@@ -130,6 +132,7 @@ def main() -> None:
     st.title("心屿")
     st.caption(DISCLAIMER)                         # 第一屏常驻，不折叠
     _config_gate()
+    web.register_tools()   # 注册 ≠ 暴露：ALLOW_WEB=0 时模型看不到网络工具
 
     # 主题注入必须早于聊天区渲染；选择器是侧栏第一项，_sidebar 的内容排在它后面。
     inject_theme(theme_picker())

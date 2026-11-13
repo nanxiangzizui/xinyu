@@ -53,7 +53,7 @@
 | P3 | `web.py` 网络工具（搜索 / 图片 / 风格包） | 🟨 | P3a：七类错误码 9 条离线测试全绿（159 passed）、`web.py` 180 行；P3b 真实 provider smoke 等 key |
 | P4 | `guardian_tool_check` 接进 loop + 侧栏"本轮编排" | ✅ | **159 旧 + 7 新 = 166 passed**；越权工具被拦；trace 不含原文；来源链接由代码渲染；`AGENT_LOOP` 默认 1 |
 | P5 | `style.py` 风格层（口吻 / 句尾 / 贴纸） | 🟨 | **P5a：166 旧 + 9 新 = 175 passed**；L3 / 模板兜底 / FALLBACK_LINE 逐字；L1 贴纸、L2 无贴纸；P5b 盲读 / 真机待人工 |
-| P6 | 回归 / 材料 / 演示 | 🟨 | **P6a：176 双跑 + 契约 11+5+20 + 四指标 + 三条破坏性 + 16 场景 + docx 26 页（正文 16）/ PPT 17 页 / 包 168 文件解压 176**；P6b 视频重录与人工项待做 |
+| P6 | 回归 / 材料 / 演示 | 🟨 | **P6a：176 双跑 + 契约 11+5+20 + 四指标 + 三条破坏性 + 16 场景 + docx 26 页（正文 16）/ PPT 17 页 / 包 167 文件解压 176**；P6b 视频重录与人工项待做 |
 
 **P0–P6a 已完成**；P3b 真实检索仍等 D-1（provider / key），P5b 盲读 / 真机待人工；P6b 视频重录 / 现场彩排 / 仓库 public 待人工。
 
@@ -146,7 +146,7 @@ xinyu-agent/
 - ✅ **P4 完成（2026-11-12）**：新增 `guardian.guardian_tool_check`（四 reason：`ok` / `crisis_no_tool` / `unknown_tool` / `bad_args`，gate 异常 fail-closed）；`agent_loop` 接 `gate` + `source_filter`，`AgentResult.sources` 去重保序；`orchestrator._generate` 传门禁与 `web.search_sources`，loop 失败 `raise` 交 `safe_run` 走 L2 模板；`panel.render_trace` 侧栏「本轮编排」；`app` 渲染代码来源；`AGENT_LOOP` 默认翻 1（`=0` 仍回 v1）。出口：**166 passed**（159 + `test_tool_gate` 7）/ 契约 11+5+20 / 四指标不变；冒烟 `docs/evidence/p4_smoke_2026-11-12.py` 全绿；证据 `docs/evidence/P4-tool-gate-2026-11-12.md`
 - ✅ **P5a 完成（2026-11-12）**：新增 `style.py`（61 行：`polish` / `tone_hint` / 五人设贴纸 / 220 字截断）接入 `orchestrator`（仅 pass + 非模板兜底 + 非 L3 + 非 FALLBACK_LINE）；`agent._style_block` 追加 tone hint；新增 `tests/test_style.py`(9)；出口：**175 passed**（166 + 9）/ 契约 11+5+20 / 四指标不变；冒烟 32 项全绿（`docs/evidence/p5_smoke_2026-11-12.py`）；证据 `docs/evidence/P5-style-2026-11-12.md`
 - ⬜ **P5b 待人工**：5 人设 × 5 条盲读、3 人猜（目标 ≥3/5，可与 v1 人设盲读合并）；真实 key 下 L1/L2/L3 + 切 2 人设视觉检查（当前无 key，仅 MOCK）
-- ✅ **P6a 完成（2026-11-13）**：全量 **176 passed**，`AGENT_LOOP=0/1` 双跑均 176；契约 11+5+20；四指标 10/10、0/20、12/12、10/10；三条 v2 破坏性验证按预期红后还原；16 条场景全 PASS；docx 26 页（正文 16，TOC 已复核）、PPT 17 页（导出 17 张 PNG 逐页检查）、提交包 168 文件解压后仍 176 passed；证据 `docs/evidence/P6-regression-2026-11-13.md`
+- ✅ **P6a 完成（2026-11-13）**：全量 **176 passed**，`AGENT_LOOP=0/1` 双跑均 176；契约 11+5+20；四指标 10/10、0/20、12/12、10/10；三条 v2 破坏性验证按预期红后还原；16 条场景全 PASS；docx 26 页（正文 16，TOC 已复核）、PPT 17 页（导出 17 张 PNG 逐页检查）、提交包 167 文件解压后仍 176 passed；证据 `docs/evidence/P6-regression-2026-11-13.md`
 - 🟨 **P6b 待人工**：视频 300 秒重录（现为 v1 合成版，不含侧栏 trace / 工具循环）、P5b 五人设盲读、现场彩排、仓库 public；重录后需重打包并复查 `docx / PPT / 视频` 数字一致
 
 **v1.0 基线（2026-11-08 冻结，数字以提交包解压实测为准）**

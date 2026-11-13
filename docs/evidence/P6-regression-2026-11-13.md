@@ -1,6 +1,6 @@
 # P6 回归、材料与提交包验收（2026-11-13）
 
-> 结论：P6a（回归 + 材料 + 包）完成。176 条测试在 `AGENT_LOOP=0` / `1` 下各跑一遍全绿；契约 11+5+20；四指标不变；三条 v2 破坏性验证按预期变红后还原；docx 26 页（正文 16）、PPT 17 页、提交包 168 文件且解压后仍 176 passed。
+> 结论：P6a（回归 + 材料 + 包）完成。176 条测试在 `AGENT_LOOP=0` / `1` 下各跑一遍全绿；契约 11+5+20；四指标不变；三条 v2 破坏性验证按预期变红后还原；docx 26 页（正文 16）、PPT 17 页、提交包 167 文件且解压后仍 176 passed。
 > 未完成的是人工项：视频重录（当前仍是 v1 合成版）、P5b 五人设盲读、真实 provider（P3b）、现场彩排、仓库 public。P6b 因此仍为 🟨。
 
 ## 1. 出口核对
@@ -15,7 +15,7 @@
 | 16 条场景 | 16/16 PASS | `p6_scenarios_2026-11-13.txt` |
 | 项目文档 | 26 页，正文 3–18（16 页），附录 19–26 | Word COM 统计，见 §6 |
 | 项目方案 | 17 页，16:9，首页写赛题一 | `p6_pptx_2026-11-13.txt`、`ppt_png/` |
-| 提交包 | 168 文件，解压后 176 passed | §7；`D:\deepseek harness\心屿MindIsle_提交包_v2.0.zip` |
+| 提交包 | 167 文件，解压后 176 passed | §7；`D:\deepseek harness\心屿MindIsle_提交包_v2.0.zip` |
 
 ## 2. 代码冻结与改动边界
 
@@ -69,7 +69,7 @@ $env:AGENT_LOOP="1"; ./.venv/Scripts/python.exe -m pytest -q
 
 - PPT：17 页；第 8 页九节点 + `generate` 内部循环；第 11 页工具三条红线；第 15 页 176 / 11+5+20 / 七类错误码。PowerPoint COM 导出 17 张 PNG 到 `docs/evidence/ppt_png/`，逐页检查过版式。
 - 包名 `心屿-v2.0`；`docs/build_package.py` 的根文件清单已补 `orchestrator.py / agent_loop.py / tools.py / web.py / style.py`。
-- 最终包（在 04 / P6 证据 / README / CLAUDE 更新后重建）：`心屿MindIsle_提交包_v2.0.zip`，解压 **168 文件**，用仓库 `.venv` 在解压目录跑 `pytest -q` 得 **176 passed**。字节数与 SHA256 由构建日志 `p6_package_build_2026-11-13.txt` 记录（日志留在仓库、不打进包，避免自指；每次重建会变，正文不写死）；仓库内最终全量见 `p6_pytest_final_2026-11-13.txt`（176 passed in 6.90s）。
+- 最终包（在 04 / P6 证据 / README / CLAUDE 更新后重建）：`心屿MindIsle_提交包_v2.0.zip`，解压 **167 文件**，用仓库 `.venv` 在解压目录跑 `pytest -q` 得 **176 passed**。字节数与 SHA256 由构建日志 `p6_package_build_2026-11-13.txt` 记录；构建日志与解压复跑日志都留在仓库、不打进包，避免自指（每次重建会变，正文不写死）。仓库内最终全量见 `p6_pytest_final_2026-11-13.txt`（176 passed in 7.14s），解压复跑见 `p6_package_pytest_2026-11-13.txt`。
 
 ## 8. 已知限制 / 偏差
 

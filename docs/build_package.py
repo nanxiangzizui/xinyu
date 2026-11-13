@@ -41,8 +41,8 @@ EXTRA_FILES = ["docs/demo-script.md", "docs/demo_timeline.json"]
 
 SKIP_DIRS = {"__pycache__", ".pytest_cache"}
 SKIP_SUFFIX = {".pyc", ".pyo"}
-# [SAFE] 构建日志记录的是本次 zip 的 SHA，若打进包会自指；留在仓库即可
-SKIP_FILES = {"p6_package_build_2026-11-13.txt"}
+# [SAFE] 构建日志与解压复跑日志都描述“这个包”，打进包会自指；留在仓库即可
+SKIP_FILES = {"p6_package_build_2026-11-13.txt", "p6_package_pytest_2026-11-13.txt"}
 
 
 def copy_tree(src: Path, dst: Path) -> int:

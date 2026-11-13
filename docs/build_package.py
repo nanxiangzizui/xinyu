@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""S26 提交包构建：把要交给评委的文件复制成 心屿-v1.0/ 再打成一个 zip。
+"""提交包构建：把要交给评委的文件复制成 心屿-v2.0/ 再打成一个 zip。
 
 用法（bundled python）：
     python docs/build_package.py [输出 zip 路径]
@@ -17,7 +17,7 @@ import zipfile
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-PKG_NAME = "心屿-v1.0"
+PKG_NAME = "心屿-v2.0"
 
 # 四份材料在仓库 docs/ 下，进包时放根目录（step/S26 §6）
 MATERIALS = [
@@ -28,7 +28,8 @@ MATERIALS = [
 ]
 
 ROOT_FILES = [
-    "app.py", "agent.py", "coordinator.py", "guardian.py", "memory.py",
+    "app.py", "agent.py", "orchestrator.py", "agent_loop.py", "tools.py",
+    "web.py", "style.py", "coordinator.py", "guardian.py", "memory.py",
     "panel.py", "resources.py", "roles.py", "logger.py", "theme.py",
     "contract_check.py", "metrics.py",
     "requirements.txt", "README.md", ".env.example", ".streamlit/config.toml",
@@ -40,6 +41,8 @@ EXTRA_FILES = ["docs/demo-script.md", "docs/demo_timeline.json"]
 
 SKIP_DIRS = {"__pycache__", ".pytest_cache"}
 SKIP_SUFFIX = {".pyc", ".pyo"}
+# [SAFE] 构建日志记录的是本次 zip 的 SHA，若打进包会自指；留在仓库即可
+SKIP_FILES = {"p6_package_build_2026-11-13.txt"}
 
 
 def copy_tree(src: Path, dst: Path) -> int:
@@ -47,7 +50,7 @@ def copy_tree(src: Path, dst: Path) -> int:
     for path in sorted(src.rglob("*")):
         if any(part in SKIP_DIRS for part in path.parts):
             continue
-        if path.suffix in SKIP_SUFFIX or not path.is_file():
+        if path.suffix in SKIP_SUFFIX or path.name in SKIP_FILES or not path.is_file():
             continue
         rel = path.relative_to(src)
         target = dst / rel
@@ -58,7 +61,7 @@ def copy_tree(src: Path, dst: Path) -> int:
 
 
 def main() -> int:
-    out = Path(sys.argv[1]) if len(sys.argv) > 1 else ROOT.parent / "心屿MindIsle_提交包_v1.0.zip"
+    out = Path(sys.argv[1]) if len(sys.argv) > 1 else ROOT.parent / "心屿MindIsle_提交包_v2.0.zip"
     stage_root = Path(tempfile.mkdtemp(prefix="xy_pkg_"))
     pkg = stage_root / PKG_NAME
     pkg.mkdir(parents=True, exist_ok=True)

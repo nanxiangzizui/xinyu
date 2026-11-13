@@ -21,9 +21,9 @@ INK = RGBColor(0x24, 0x30, 0x44)
 MUTED = RGBColor(0x6B, 0x72, 0x80)
 BODY_FONT = "宋体"
 HEAD_FONT = "黑体"
-BODY_PT = 12
-LINE = 1.3
-TEXT_W = 16.4  # 正文可用宽度（21cm - 左右各 2.2cm，留 0.2 余量）
+BODY_PT = 11.2
+LINE = 1.2
+TEXT_W = 16.8  # 正文可用宽度（21cm - 左右各 2.0cm，留 0.2 余量）
 
 
 def _east(style, name):
@@ -48,8 +48,8 @@ def setup(doc):
     sec = doc.sections[0]
     sec.page_width, sec.page_height = Cm(21), Cm(29.7)
     for side in ("left_margin", "right_margin"):
-        setattr(sec, side, Cm(2.2))
-    sec.top_margin, sec.bottom_margin = Cm(2.4), Cm(2.2)
+        setattr(sec, side, Cm(2.0))
+    sec.top_margin, sec.bottom_margin = Cm(2.2), Cm(2.0)
 
     st = doc.styles["Normal"]
     st.font.name = BODY_FONT
@@ -58,7 +58,7 @@ def setup(doc):
     _east(st, BODY_FONT)
     pf = st.paragraph_format
     pf.line_spacing = LINE
-    pf.space_after = Pt(4)
+    pf.space_after = Pt(3)
 
     for name, size in (("Heading 1", 17), ("Heading 2", 14), ("Heading 3", 12.5)):
         h = doc.styles[name]
@@ -289,8 +289,8 @@ def title_page(doc):
     rows = [
         ("队伍", "6 人小队（分工见第 8 章）"),
         ("产物", "Streamlit 单页应用 + 规则安全层 + 本地记忆"),
-        ("代码规模", "12 个 Python 模块（1,962 行），132 条自动化测试"),
-        ("版本 / 日期", "v1.0 / 2026-11-08"),
+        ("代码规模", "17 个 Python 模块（2,779 行），176 条自动化测试"),
+        ("版本 / 日期", "v2.0 / 2026-11-13"),
     ]
     t = doc.add_table(rows=0, cols=2)
     t.alignment = WD_TABLE_ALIGNMENT.CENTER

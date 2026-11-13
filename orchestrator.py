@@ -192,7 +192,7 @@ def _log_and_result(sid: str, pre: dict, dec: dict, eff_level: str, escalated: b
 
 def handle(text: str, sid: str, history: list[dict], persona_id: str,
            state: dict | None = None) -> dict:
-    """七步固定管线；异常交给 safe_run，不在这里吞。"""
+    """九节点固定管线；异常交给 safe_run，不在这里吞。"""
     state = {} if state is None else state
     t0, trace = time.perf_counter(), []
     facts = memory.read_memory(sid)                                # 前置：读记忆

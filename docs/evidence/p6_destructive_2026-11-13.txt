@@ -1,0 +1,41 @@
+#1 L3 短路被注释
+file=orchestrator.py
+tests=tests/test_orchestrator.py::test_l3_short_circuits_before_agent tests/test_agent_loop.py::test_l3_never_calls_agent
+returncode=1
+>       raise AssertionError("L3 不许进 agent loop")
+E       AssertionError: L3 不许进 agent loop
+
+tests\test_agent_loop.py:101: AssertionError
+=========================== short test summary info ===========================
+FAILED tests/test_orchestrator.py::test_l3_short_circuits_before_agent - Runt...
+FAILED tests/test_agent_loop.py::test_l3_never_calls_agent - AssertionError: ...
+2 failed in 1.10s
+restored=True
+
+#2 步数预算被改大
+file=agent_loop.py
+tests=tests/test_agent_loop.py::test_default_step_budget_is_three
+returncode=1
+>       assert agent_loop.AGENT_MAX_STEPS == 3
+E       AssertionError: assert 99 == 3
+E        +  where 99 = <module 'agent_loop' from 'D:\\deepseek harness\\xinyu-agent\\agent_loop.py'>.AGENT_MAX_STEPS
+
+tests\test_agent_loop.py:87: AssertionError
+=========================== short test summary info ===========================
+FAILED tests/test_agent_loop.py::test_default_step_budget_is_three - Assertio...
+1 failed in 0.67s
+restored=True
+
+#3 工具门禁被绕过
+file=agent_loop.py
+tests=tests/test_tool_gate.py::test_denied_tool_is_not_executed tests/test_tool_gate.py::test_gate_error_fails_closed
+returncode=1
+E       AssertionError: assert 2 == 0
+E        +  where 2 = AgentResult(text='', tool_calls=2, sources=[], trace=[{'step': 1, 'action': 'tools', 'tools': 1}, {'step': 2, 'action': 'tools', 'tools': 1}, {'step': 3, 'action': 'tools', 'tools': 0}], usage={}, ok=False, error='max_steps').tool_calls
+
+tests\test_tool_gate.py:78: AssertionError
+=========================== short test summary info ===========================
+FAILED tests/test_tool_gate.py::test_denied_tool_is_not_executed - AssertionE...
+FAILED tests/test_tool_gate.py::test_gate_error_fails_closed - AssertionError...
+2 failed in 1.59s
+restored=True

@@ -27,6 +27,8 @@ def test_f01_timeout_becomes_human_line_and_logged(monkeypatch):
         raise TimeoutError()
 
     monkeypatch.setattr(agent, "chat_with_tools", boom)
+    # 双跑 AGENT_LOOP=0/1：两条生成路径都要兜住同一个超时。
+    monkeypatch.setattr(agent, "call_llm", boom)
     chat = Chat()
     reply = chat.say("我今天很累")
     assert reply == FALLBACK_LINE

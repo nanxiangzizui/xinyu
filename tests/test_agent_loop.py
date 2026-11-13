@@ -80,6 +80,18 @@ def test_tool_error_is_fed_back_and_loop_continues():
     assert "工具调用失败" in seen[-1]
 
 
+def test_default_step_budget_is_three():
+    """默认预算就是 3：不传 max_steps 时，第 4 次请求必须不存在。"""
+    import agent_loop
+
+    assert agent_loop.AGENT_MAX_STEPS == 3
+    _with_fakes()
+    chat = ScriptedChat(*[wants(call("echo", {"text": "x"}, f"c{i}")) for i in range(5)])
+    res = run_agent("sys", [], tools.list_for_turn("listener", "L1"),
+                    chat=chat, fallback_text="兜底")
+    assert (res.ok, res.error, chat.calls) == (False, "max_steps", 3)
+
+
 def test_l3_never_calls_agent(monkeypatch):
     """L3 在 orchestrator 短路：loop 存在也不许被调用。"""
     _with_fakes()

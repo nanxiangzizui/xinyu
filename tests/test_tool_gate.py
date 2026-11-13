@@ -106,8 +106,10 @@ def test_sources_are_filtered_by_code():
 
 
 def test_loop_failure_becomes_template_fallback(monkeypatch):
-    """默认 AGENT_LOOP=1 后，chat_with_tools 抛异常仍走 L2 + PIPELINE_FAILED。"""
-    assert orchestrator.AGENT_LOOP is True
+    """loop 路径里 chat_with_tools 抛异常仍走 L2 + PIPELINE_FAILED。"""
+    # 本用例只测 loop 兜底；显式打开，保证 AGENT_LOOP=0 双跑时仍走同一分支。
+    monkeypatch.setattr(orchestrator, "AGENT_LOOP", True)
+
     def boom(*args, **kwargs):
         raise TimeoutError()
     monkeypatch.setattr(agent, "chat_with_tools", boom)

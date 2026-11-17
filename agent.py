@@ -10,6 +10,7 @@ import time
 from dotenv import load_dotenv
 from openai import OpenAI
 
+import rolecard
 import style
 from roles import BOUNDARIES_COMMON, PERSONAS, SAFETY_BLOCK, TIMEOUT
 
@@ -188,7 +189,7 @@ def _flat(value) -> str:
 
 
 def _facts_block(memory: dict, lore: list[str]) -> str:
-    """只放 5 个字段 + lore；不放历史对话，否则 prompt 会越聊越长。"""
+    """5 个字段 + 本轮情景块 + lore；不放历史对话，prompt 才不会越聊越长。"""
     rows: list[str] = []
     for key, label in (("preferred_tone", "对方喜欢的语气"),
                        ("coping_preferences", "对方愿意试的办法"),
@@ -198,11 +199,14 @@ def _facts_block(memory: dict, lore: list[str]) -> str:
         text = _flat(memory.get(key))
         if text:
             rows.append(f"{label}：{text}")
+    episode_text = _flat(memory.get("_episode_text"))
+    if episode_text:
+        rows.append(episode_text)
     for item in lore or []:
         text = _flat(item)
         if text:
             # [SAFE] lore 只是背景常识：允许自然带一句，但禁止整段复述成公告。
-            rows.append(f"背景（和对方的话相关时用一句话带出，不要整段念）：{text}")
+            rows.append(f"背景（相关时一句）：{text}")
     return "\n".join(rows)
 
 
@@ -217,6 +221,9 @@ def _style_block(p: dict, persona_id: str) -> str:
     ]
     for user_text, bot_text in p["mes_example"]:
         lines.append(f"用户：{user_text}\n你：{bot_text}")
+    speech = style.speech_block(persona_id)
+    if speech:
+        lines.append(speech)
     hint = style.tone_hint(persona_id)
     return "\n".join(lines) + ("\n" + hint if hint else "")
 
@@ -226,7 +233,10 @@ def build_system_prompt(persona_id: str, memory: dict, lore: list[str]) -> str:
 
     安全区在最前（模型对开头最敏感），PHI 在最后（紧贴用户输入）。
     事实区是唯一可能为空的一段：空了整段省略，不留空标题。
+    P9b：首参传 dict 即角色卡模式（B），只拼角色卡 prompt；A 的签名与行为不变。
     """
+    if isinstance(persona_id, dict):
+        return rolecard.build_prompt(persona_id, memory, lore)
     persona_key = persona_id if persona_id in PERSONAS else "sister_heart"
     p = PERSONAS[persona_key]
     parts = [

@@ -18,8 +18,10 @@ load_dotenv()
 # 线上（Streamlit Cloud）没有 .env，密钥只放在平台的 Secrets 里，读法是 `st.secrets`，
 # 不是环境变量。必须在 import memory / agent 之前铺好：memory.py 的 DATA_DIR 是模块级常量。
 _SECRET_KEYS = ("LLM_API_KEY", "LLM_BASE_URL", "LLM_MODEL", "MOCK_LLM",
-                "DATA_DIR", "LOG_DIR",
-                "WEB_PROVIDER", "WEB_API_KEY", "WEB_ENDPOINT")
+                "DATA_DIR", "LOG_DIR", "ALLOW_WEB", "WEB_PROVIDER",
+                "BOCHA_API_KEY", "BOCHA_ENDPOINT",
+                "TAVILY_API_KEY", "TAVILY_ENDPOINT",
+                "WEB_API_KEY", "WEB_ENDPOINT", "ROLECARD")
 
 
 def _bridge_secrets() -> None:
@@ -40,14 +42,17 @@ def _bridge_secrets() -> None:
 
 _bridge_secrets()
 
-from logger import session_hash                                  # noqa: E402  顺序要紧
-from memory import clear_memory                                  # noqa: E402
-from orchestrator import safe_run                                # noqa: E402
-from panel import (LEVEL_LABELS, REASON_LABELS, ROLE_LABELS,  # noqa: E402
+from logger import session_hash
+from memory import clear_memory
+from orchestrator import safe_run
+from panel import (LEVEL_LABELS, REASON_LABELS, ROLE_LABELS,
                    render_panel, render_trace)
-from resources import pick_resources                             # noqa: E402
-from theme import inject_theme, theme_picker                     # noqa: E402
-import web                                                        # noqa: E402
+from resources import pick_resources
+from theme import inject_theme, theme_picker
+import chat_ui
+import episode_store
+import rolecard_ui
+import web
 
 logger = logging.getLogger(__name__)
 
@@ -85,22 +90,33 @@ def _config_gate() -> None:
         st.stop()
 
 
-def _render_history(messages: list[dict]) -> None:
-    for msg in messages:
-        with st.chat_message(msg["role"]):
-            st.markdown(msg["content"])
-            for src in msg.get("sources") or []:
-                # 来源只来自 web.search_sources 的代码过滤结果，模型正文里不解析链接。
-                if src.get("url"):
-                    st.markdown(f"- [{src.get('title') or src['url']}]({src['url']})")
+def _rolecard_enabled() -> bool:
+    """D9-8：ROLECARD=0 时彻底隐藏 B 入口；默认开启。"""
+    return os.getenv("ROLECARD", "1").strip() != "0"
+
+
+def _mode_button() -> None:
+    """侧栏顶部的模式按钮：聊天里不识别切换，避免误触丢上下文。"""
+    with st.sidebar:
+        if st.session_state.get("mode") == "rolecard":
+            if st.button("返回陪伴模式", key="rc_to_companion"):
+                st.session_state["mode"] = "companion"
+                st.rerun()
+        elif _rolecard_enabled():
+            if st.button("角色卡模式", key="rc_to_rolecard"):
+                st.session_state["mode"] = "rolecard"
+                rolecard_ui.ensure_state()
+                st.rerun()
 
 
 def _clear(sid: str) -> None:
     """真删记忆并换新会话：不换 id 的话，侧栏一读记忆文件就会被重建。"""
-    try:
-        clear_memory(sid)
-    except OSError as exc:                          # 边界：删不掉也不许崩页面
-        logger.warning("clear_failed session=%s error=%s", sid[:6], type(exc).__name__)
+    for clear_fn in (clear_memory, episode_store.clear):
+        try:
+            clear_fn(sid)
+        except OSError as exc:                      # 边界：删不掉也不许崩页面
+            logger.warning("clear_failed session=%s error=%s",
+                           sid[:6], type(exc).__name__)
     st.session_state.messages = []
     st.session_state["last_trace"] = []
     st.session_state["degraded"] = False
@@ -134,16 +150,8 @@ def _sidebar(sid: str) -> None:
         render_trace(st.session_state.get("last_trace"))
 
 
-def main() -> None:
-    st.set_page_config(page_title="心屿 · 情绪陪伴", layout="centered")
-    st.title("心屿")
-    st.caption(DISCLAIMER)                         # 第一屏常驻，不折叠
-    _config_gate()
-    web.register_tools()   # 注册 ≠ 暴露：ALLOW_WEB=0 时模型看不到网络工具
-
-    # 主题注入必须早于聊天区渲染；选择器是侧栏第一项，_sidebar 的内容排在它后面。
-    inject_theme(theme_picker())
-
+def _companion() -> None:
+    """A 的聊天页：只读写 messages/persona_id 等 A 状态，不碰 rc_*。"""
     sid = get_session_id()
     st.session_state.setdefault("messages", [])
     st.session_state.setdefault("persona_id", DEFAULT_PERSONA)
@@ -155,26 +163,27 @@ def main() -> None:
         st.session_state.setdefault(key, default)
     st.session_state.setdefault("last_trace", [])
 
-    _render_history(st.session_state.messages)
+    chat_ui.render_history(st.session_state.messages)
 
     text = (st.chat_input("说说你现在想说的…") or "").strip()
     if text:
-        st.session_state["turn"] += 1
-        st.session_state.messages.append({"role": "user", "content": text})
+        history, merged, turn = chat_ui.accept(st.session_state.messages, text)
+        st.session_state["turn"] = turn
         with st.chat_message("user"):
             st.markdown(text)
         with st.chat_message("assistant"):
             with st.spinner("我在听…"):
-                result = safe_run(text, sid, st.session_state.messages,
+                result = safe_run(merged, sid, history,
                                   st.session_state.persona_id, st.session_state)
+            # 先落库再渲染：渲染这一帧被打断时，回复还在，重绘不会凭空消失。
+            st.session_state.messages.append({
+                "role": "assistant", "content": result["reply"],
+                "sources": result.get("sources") or []})
             st.markdown(result["reply"])
             # [SAFE] S10 §8：L2/L3 当轮各出一次资源卡（L2 两张 / L3 三张），L1 为空不打扰。
             # 卡只渲染在本轮，不写进 messages，刷新重绘时不会重复弹（S21 #4 补的口径）。
             for card in pick_resources(result["level"], []):
                 st.info(f"{card['title']}：{card['detail']}")
-        st.session_state.messages.append({
-            "role": "assistant", "content": result["reply"],
-            "sources": result.get("sources") or []})
         st.session_state["last_trace"] = result.get("trace", [])
         st.session_state["degraded"] = result["degraded"]
         st.session_state["last_role"] = result["role"]
@@ -182,6 +191,23 @@ def main() -> None:
         st.session_state["last_reason"] = result.get("reason", "default")
 
     _sidebar(sid)
+
+
+def main() -> None:
+    st.set_page_config(page_title="心屿 · 情绪陪伴", layout="centered")
+    st.title("心屿")
+    st.caption(DISCLAIMER)                         # 第一屏常驻，不折叠
+    _config_gate()
+    web.register_tools()   # 注册 ≠ 暴露：ALLOW_WEB=0 时模型看不到网络工具
+
+    # 主题注入必须早于聊天区渲染；选择器是侧栏第一项，模式按钮排在它后面。
+    inject_theme(theme_picker())
+    st.session_state.setdefault("mode", "companion")
+    _mode_button()
+    if st.session_state.get("mode") == "rolecard" and _rolecard_enabled():
+        rolecard_ui.render()
+    else:
+        _companion()
 
 
 if __name__ == "__main__":

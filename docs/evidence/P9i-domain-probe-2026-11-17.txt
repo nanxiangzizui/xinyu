@@ -1,0 +1,44 @@
+﻿
+### site:wiki.hoyolab.com ���� -> empty
+
+### site:wiki.biligame.com ���� -> ok
+ - ���� - ԭ��WIKI_BWIKI_�������� https://wiki.biligame.com/ys/%E6%B8%85%E6%B6%9F
+ - Ϧ�黶�š����/����� - �����WIKI_BWIKI_�������� https://wiki.biligame.com/yuan/%E5%A4%95%E6%83%85%E6%AC%A2%E9%A6%80%C2%B7%E5%B7%A6%E6%85%88/%E6%B4%BB%E5%8A%A8%E5%89%A7%E6%83%85?biliLogin=1
+ - ���� - ɽ������WIKI_BWIKI_�������� https://wiki.biligame.com/shjh/%E8%91%B1%E8%81%8B
+ - ��� - ��������WIKI_BWIKI_�������� https://wiki.biligame.com/pcr/%E9%A6%99%E6%BE%84
+ - ���� - �漣ůůWIKI_BWIKI_�������� https://wiki.biligame.com/qjnn/%E4%BA%91%E9%9C%AD
+
+### site:miyoushe.com ���� ��ɫ -> ok
+ - ����ϲ�Ľ�ɫ-����ѧ԰2����-������ https://www.miyoushe.com/bh2/article/70466978
+ - 3.7 ��Ϊ���յ����� ���� ��ɫ���� ��ͼ(��ˮӡ���ְ�)-����ѧ԰2����-������ https://www.miyoushe.com/bh2/article/70369448
+ - ��V3.7���ԡ�����������ɫ����-δ���¼�������-������ https://www.miyoushe.com/wd/article/71513670
+ - ˭�ܸ�����?-ԭ������-������ https://www.miyoushe.com/ys/article/73087582
+ - С����-ԭ������-������ https://www.miyoushe.com/ys/article/70755242#reply
+
+### ������������� ���� �ٷ� ��ɫ���� -> ok
+ - ������:�������������������ֽͼƬ,����ө���� | BoBoPic https://bobopic.com/cyrene-chahua.html
+ - ������:����������½�ɫ����PV--���ٶȺ��㡹 _ �����ǿ� GamerSky.com https://www.gamersky.com/news/202511/2038789.shtml
+ - �������������������_�����������_�����ֻ���Ϸ https://www.9game.cn/bhxqtd/11446985.html
+ - ������:���������������;Ҳ����ס���ഺ��!| ����_������Ϸ����_17173.com�й���Ϸ�Ż�վ https://news.17173.com/content/03092026/162441590.shtml
+ - ������:��������������Լ��䡸��������׶�����������Ӧ���Ƽ�-��������������ʷ����ι���-OurPlay������ https://www.ourplay.net/find/detail/192493
+
+### ������������� ���� ������ ���� ���� -> ok
+ - ����-����:�����������-������ https://www.miyoushe.com/sr/article/68340758
+ - �����������桿����-����:�����������-������ https://www.miyoushe.com/sr/article/71275218
+ - ������:������������ǹ�����|����_������Ϸ����_17173.com�й���Ϸ�Ż�վ https://news.17173.com/content/08112025/152707853.shtml
+ - ��������:�⼴���յ�����,�����Ļ��� #����������� #�ڵڰ������ #��������������� #�ҵ���Ϸ�ճ� #����������� https://www.toutiao.com/video/7454954339820506378/
+ - ������:�������������:��ȥδ���ճɼ���_������Ϸ����_17173.com�й���Ϸ�Ż�վ https://news.17173.com/content/03022026/114650334.shtml
+
+### Cyrene Honkai Star Rail wiki -> ok
+ - Cyrene (Honkai: Star Rail) - Wikipedia https://en.wikipedia.org/wiki/Cyrene_(Honkai:_Star_Rail)
+ - Cyrene | Heroes Wiki | Fandom https://hero.fandom.com/wiki/Cyrene_(Honkai:_Star_Rail)
+ - Cyrene Is the CORE Of Amphoreus (Cyrene's Story EXPLAINED) | https://www.youtube.com/watch?v=8fwyN6P_69M
+ - Cyrene Best Builds and Teams | Honkai: Star Rail��Game8 https://game8.co/games/Honkai-Star-Rail/archives/541348
+ - Characters in Honkai: Star Rail��Cyrene https://tvtropes.org/pmwiki/pmwiki.php/Characters/HonkaiStarRailCyrene
+
+### Honkai Star Rail Cyrene character story -> ok
+ - Cyrene (Honkai: Star Rail) - Wikipedia https://en.wikipedia.org/wiki/Cyrene_(Honkai:_Star_Rail)
+ - The Tragic yet Beautiful Story of Cyrene | Honkai Star Rail  https://www.youtube.com/watch?v=XePfRN-5hNA
+ - What Happens To Cyrene in 3.7? | Honkai Star Rail Lore https://www.youtube.com/watch?v=lM4awQc5tB0
+ - A summary of Cyrene. https://www.hoyolab.com/article/41822356
+ - Where Cyrene Details Came from | TikTok https://www.tiktok.com/discover/where-cyrene-details-came-from

@@ -90,3 +90,109 @@ def test_registered_tool_hidden_without_allow_web(monkeypatch):
     assert "web_search" not in names
     names = [t["function"]["name"] for t in tools.list_for_turn("guide", "L1", allow_web=True)]
     assert "web_search" in names
+
+
+def test_tool_description_is_entity_lookup(monkeypatch):
+    """P8：模型只有看到工具描述才知道该查专名，而不是查「怎么安慰人」。"""
+    monkeypatch.setenv("WEB_API_KEY", "k")
+    web.register_tools()
+    description = tools.REGISTRY["web_search"].description
+    assert "人名" in description and "角色" in description and "专名" in description
+
+
+def json_body(obj):
+    return json.dumps(obj, ensure_ascii=False).encode("utf-8")
+
+
+def bocha_body(*urls):
+    rows = [{"name": f"博查标题{i}", "url": u, "snippet": "博查摘要"}
+            for i, u in enumerate(urls)]
+    return json_body({"code": 200, "data": {"webPages": {"value": rows}}})
+
+
+def tavily_body(*urls):
+    rows = [{"title": f"Tavily 标题{i}", "url": u, "content": "Tavily 摘要"}
+            for i, u in enumerate(urls)]
+    return json_body({"results": rows})
+
+
+def test_bocha_wrapped_response(monkeypatch):
+    """博查真实响应在 data.webPages.value；解包不对就会整条 bad_json。"""
+    monkeypatch.setenv("WEB_PROVIDER", "bocha")
+    monkeypatch.setenv("BOCHA_API_KEY", "b")
+    monkeypatch.delenv("WEB_API_KEY", raising=False)
+    seen = []
+    data, err = web.search("青砚",
+                           fetch=fake_fetch_factory(body=bocha_body("https://a.example/x"),
+                                                    seen=seen))
+    assert (err, data["provider"], data["items"][0]["title"]) == ("", "bocha", "博查标题0")
+    assert seen[0][0] == "https://api.bocha.cn/v1/web-search"
+    assert json.loads(seen[0][1])["count"] == web.MAX_RESULTS
+
+
+def test_tavily_results_response(monkeypatch):
+    """Tavily 顶层 results；请求体要 max_results，不要博查的 count。"""
+    monkeypatch.setenv("WEB_PROVIDER", "tavily")
+    monkeypatch.setenv("TAVILY_API_KEY", "t")
+    monkeypatch.delenv("WEB_API_KEY", raising=False)
+    seen = []
+    data, err = web.search("Who is Qingyan",
+                           fetch=fake_fetch_factory(body=tavily_body("https://b.example/y"),
+                                                    seen=seen))
+    payload = json.loads(seen[0][1])
+    assert (err, data["provider"], data["items"][0]["title"]) == ("", "tavily", "Tavily 标题0")
+    assert seen[0][0] == "https://api.tavily.com/search"
+    assert payload["max_results"] == web.MAX_RESULTS and "count" not in payload
+
+
+def test_auto_routes_chinese_to_bocha(monkeypatch):
+    """中文/ACG 查询走博查；两家 key 都在时按语言分流。"""
+    monkeypatch.setenv("WEB_PROVIDER", "auto")
+    monkeypatch.setenv("BOCHA_API_KEY", "b")
+    monkeypatch.setenv("TAVILY_API_KEY", "t")
+    monkeypatch.delenv("WEB_API_KEY", raising=False)
+    seen = []
+    data, err = web.search("青砚是谁",
+                           fetch=fake_fetch_factory(body=bocha_body("https://a.example/x"),
+                                                    seen=seen))
+    assert err == "" and data["provider"] == "bocha"
+    assert "bocha" in seen[0][0]
+
+
+def test_auto_routes_english_to_tavily(monkeypatch):
+    """英文/技术查询走 Tavily；同一条查询不会两家都打。"""
+    monkeypatch.setenv("WEB_PROVIDER", "auto")
+    monkeypatch.setenv("BOCHA_API_KEY", "b")
+    monkeypatch.setenv("TAVILY_API_KEY", "t")
+    monkeypatch.delenv("WEB_API_KEY", raising=False)
+    seen = []
+    data, err = web.search("Who is Qingyan in Some Fictional Work",
+                           fetch=fake_fetch_factory(body=tavily_body("https://b.example/y"),
+                                                    seen=seen))
+    assert err == "" and data["provider"] == "tavily" and len(seen) == 1
+    assert "tavily" in seen[0][0]
+
+
+def test_auto_falls_back_when_preferred_key_missing(monkeypatch):
+    """只配 Tavily 时中文查询也能跑；不要把空 key 发出去。"""
+    monkeypatch.setenv("WEB_PROVIDER", "auto")
+    monkeypatch.delenv("BOCHA_API_KEY", raising=False)
+    monkeypatch.delenv("WEB_API_KEY", raising=False)
+    monkeypatch.setenv("TAVILY_API_KEY", "t")
+    seen = []
+    data, err = web.search("青砚是谁",
+                           fetch=fake_fetch_factory(body=tavily_body("https://b.example/y"),
+                                                    seen=seen))
+    assert err == "" and data["provider"] == "tavily"
+    assert "tavily" in seen[0][0]
+
+
+@pytest.mark.parametrize("code,expected", [(401, "http_401"), (403, "http_401"),
+                                           (429, "http_429"), (500, "bad_json")])
+def test_bocha_body_code_is_mapped(monkeypatch, code, expected):
+    """博查可能 HTTP 200 但 body code 非 200；不能当成功解析。"""
+    monkeypatch.setenv("WEB_PROVIDER", "bocha")
+    monkeypatch.setenv("BOCHA_API_KEY", "b")
+    monkeypatch.delenv("WEB_API_KEY", raising=False)
+    body = json_body({"code": code, "data": {}})
+    assert web.search("青砚", fetch=fake_fetch_factory(body=body))[1] == expected

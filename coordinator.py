@@ -87,3 +87,16 @@ def aggregate_level(history: list[str], current: str) -> str:
     if sum(1 for x in window if x == "L2") >= ESCALATE_AT:
         return "L3"
     return risk_floor(history, current)
+
+
+def effective_level(raw: str, state: dict) -> tuple[str, bool]:
+    """[SAFE] 会话聚合只升不降：窗口内真实 L2+ ≥3 次升 L3，出现过 L2+ 则地板 L2。
+
+    P9b 从 orchestrator 搬来：A/B 两种模式共用同一份只升不降逻辑。
+    窗口只存 pre 的原始等级，不存聚合后的 eff，否则地板抬上来的 L2 会自己凑数升级。
+    """
+    levels = list(state.get("levels", []))
+    eff = aggregate_level(levels, raw)
+    # 只有升到 L3 的那轮存 eff：存地板抬上来的 L2 会让平静轮自己凑成“3 次 L2”。
+    state["levels"] = (levels + [eff if eff == "L3" else raw])[-N_WINDOW:]
+    return eff, eff != raw

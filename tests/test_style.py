@@ -1,9 +1,10 @@
-"""test_style.py — 口吻层：L3/兜底逐字、句尾、截断、贴纸、幂等、prompt 增量。"""
+"""test_style.py — 口吻层：L3/兜底逐字、句尾、截断、不追加、幂等、prompt 增量。"""
 from __future__ import annotations
 
 import agent
 import guardian
 import orchestrator
+import roles
 import style
 
 
@@ -56,11 +57,26 @@ def test_clip_without_punctuation_uses_ellipsis():
     assert out.endswith("…") and len(out) <= style.MAX_CHARS + 1
 
 
-def test_sticker_only_on_l1_and_from_whitelist():
-    out = style.polish("我在", "sister_heart", "L1")
-    assert out == f"我在 {style.STICKERS['sister_heart']}"
-    assert style.polish("我在", "sister_heart", "L2") == "我在"
-    assert style.polish("我在", "sister_heart", "L3") == "我在"
+def test_polish_never_appends_anything():
+    """P7a：贴纸交给模型，代码一个字符都不加（五人设 × 三个等级）。"""
+    for persona in roles.PERSONAS:
+        for level in ("L1", "L2", "L3"):
+            assert style.polish("我在", persona, level) == "我在", (persona, level)
+
+
+def test_no_sticker_table_left():
+    """贴纸表必须删干净：留着表，下一个人就会把它接回 polish。"""
+    assert not hasattr(style, "STICKERS")
+    assert not hasattr(style, "STICKER_LEVELS")
+
+
+def test_persona_emoji_is_default_off():
+    """五张卡不许再把"上限"写成配额；默认态只有一种说法。"""
+    for pid, card in roles.PERSONAS.items():
+        assert "最多一条" not in card["emoji"], pid
+        assert "每两三条" not in card["emoji"], pid
+    assert "默认不用" in style.SPEECH_RULES[-1]
+    assert style.SPEECH_RULES[-1] in agent.build_system_prompt("sister_heart", {}, [])
 
 
 def test_polish_is_idempotent():

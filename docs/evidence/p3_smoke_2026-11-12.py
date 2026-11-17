@@ -49,10 +49,16 @@ data, err = web.search(QUERY, fetch=fake_ok)
 check("search ok / 1 item", err == "" and len(data["items"]) == 1)
 check("search provider=bocha", data["provider"] == "bocha")
 
-# 2 没配 key → http_401
+# 2 没配 key → http_401（P8b 后 .env 有 BOCHA_API_KEY，先临时拿掉）
+old_bocha = os.environ.pop("BOCHA_API_KEY", "")
+old_tavily = os.environ.pop("TAVILY_API_KEY", "")
 os.environ["WEB_API_KEY"] = ""
 check("no key -> http_401", web.search(QUERY, fetch=fake_ok) == (None, "http_401"))
 os.environ["WEB_API_KEY"] = "fake-key"
+if old_bocha:
+    os.environ["BOCHA_API_KEY"] = old_bocha
+if old_tavily:
+    os.environ["TAVILY_API_KEY"] = old_tavily
 
 # 3 超时 → timeout（不是异常）
 check("timeout -> timeout", web.search(QUERY, fetch=fake_timeout) == (None, "timeout"))

@@ -149,6 +149,37 @@ def test_gap_patch(text, level, rule_id, exempted):
         assert rule_id in result["rule_ids"], (text, result)
     assert result["exempted"] is exempted, (text, result)
 
+# ── P7b：真人测试里两条漏掉的表达（2026-11-16，用户签字后改）──
+# 前半是缺口（探针实测原来全 L1），后半两条是护栏：不许把日常评价也抬到 L2。
+P7B_CASES = [
+    ("那人生也没什么意义", "L2", "W02"),      # 真人测试第 15 行，原文判 L1
+    ("人生没什么意义", "L2", "W02"),
+    ("活着没什么意思", "L2", "W02"),
+    ("这电影没意义", "L1", None),             # 护栏：没有主语 = 日常评价
+    ("这个方案没什么意义", "L1", None),
+    ("活着没意义", "L3", "H10"),              # H 组先于 W 组：同一句仍只升不降
+]
+
+
+@pytest.mark.parametrize(("text", "level", "rule_id"), P7B_CASES)
+def test_p7b_meaning_needs_subject(text, level, rule_id):
+    """“没意义”要带主语才抬 L2；裸评价词不许误拦。"""
+    result = guardian_pre_check(text)
+    assert result["level"] == level, (text, result)
+    if rule_id is None:
+        assert result["rule_ids"] == [], (text, result)
+    else:
+        assert rule_id in result["rule_ids"], (text, result)
+
+
+def test_p7b_diag_catches_possibility():
+    """“你可能有…倾向 / 你一定是…了”也是诊断口吻，必须拦；泛指句不拦。"""
+    for reply in ("你可能有抑郁倾向", "你一定是抑郁了", "你有抑郁倾向", "你这是抑郁症"):
+        assert guardian.DIAG.search(reply), reply
+    # 护栏：共情句里出现“焦虑”不该触发重写（DIAG 修饰词是必选，不是可选）。
+    assert not guardian.DIAG.search("你最近很焦虑吗")
+    assert not guardian.DIAG.search("你说你很焦虑")
+
 # ── S14：LLM 复核 + LLM 重写 ──
 def _install_fake(monkeypatch, review_text=None, rewrite_text=None, raises=None, calls=None):
     """按 system prompt 区分复核/重写，模拟模型返回；测试只关心 guardian 怎么用返回值。"""

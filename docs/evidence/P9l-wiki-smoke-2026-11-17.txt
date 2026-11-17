@@ -1,0 +1,5 @@
+card=白厄（卡厄斯兰那） work=崩坏星穹铁道
+https://wiki.biligame.com/sr/%E7%99%BD%E5%8E%84
+  ok=True error=- chars=6000
+https://wiki.biligame.com/sr/%E7%99%BD%E5%8E%84%EF%BC%88%E5%8D%A1%E5%8E%84%E6%96%AF%E5%85%B0%E9%82%A3%EF%BC%89
+  ok=False error=fetch_failed chars=0

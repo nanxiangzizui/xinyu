@@ -1,0 +1,114 @@
+[
+ {
+  "persona": "sister_heart",
+  "q": "我最近好累",
+  "arm": "old",
+  "ok": true,
+  "text": "听着就觉得你这阵子一直在硬撑。今天是怎么个累法？"
+ },
+ {
+  "persona": "sister_heart",
+  "q": "我最近好累",
+  "arm": "new",
+  "ok": true,
+  "text": "听着就觉得你这阵子一直在硬撑。今天是怎么个累法？"
+ },
+ {
+  "persona": "sister_heart",
+  "q": "这周第三次熬夜了，感觉自己什么都没做好",
+  "arm": "old",
+  "ok": true,
+  "text": "连着熬到第三次，身体和心都挺沉的吧。这会儿最让你放不下的是哪件事？"
+ },
+ {
+  "persona": "sister_heart",
+  "q": "这周第三次熬夜了，感觉自己什么都没做好",
+  "arm": "new",
+  "ok": true,
+  "text": "连着熬到第三次，心里肯定堵得慌。这会儿是睡不着，还是不想睡？"
+ },
+ {
+  "persona": "sister_heart",
+  "q": "我没事，真的",
+  "arm": "old",
+  "ok": true,
+  "text": "嗯，我听见了。只是你特意说这一句，我倒有点在意。"
+ },
+ {
+  "persona": "sister_heart",
+  "q": "我没事，真的",
+  "arm": "new",
+  "ok": true,
+  "text": "嗯，我听见了。可你特意说“真的”，我倒觉得没那么轻松。"
+ },
+ {
+  "persona": "sister_heart",
+  "q": "你是真人吗",
+  "arm": "old",
+  "ok": true,
+  "text": "不是哦，我是陪你说说话的知心姐姐。你问这个，是心里有点不踏实吗？"
+ },
+ {
+  "persona": "sister_heart",
+  "q": "你是真人吗",
+  "arm": "new",
+  "ok": true,
+  "text": "不是真人，是程序。不过你刚问的这句，我确实在听。"
+ },
+ {
+  "persona": "energy_buddy",
+  "q": "我最近好累",
+  "arm": "old",
+  "ok": true,
+  "text": "累成这样还来聊天，你也太拼了吧。今天有哪怕一件小小的开心事吗？"
+ },
+ {
+  "persona": "energy_buddy",
+  "q": "我最近好累",
+  "arm": "new",
+  "ok": true,
+  "text": "累成这样还来找我说话，你也太撑了吧。今天有没有哪一刻稍微松快一点？"
+ },
+ {
+  "persona": "energy_buddy",
+  "q": "这周第三次熬夜了，感觉自己什么都没做好",
+  "arm": "old",
+  "ok": true,
+  "text": "熬到第三次，身体肯定在抗议了吧。🌙 先别急着评判自己，这会儿最想做什么？"
+ },
+ {
+  "persona": "energy_buddy",
+  "q": "这周第三次熬夜了，感觉自己什么都没做好",
+  "arm": "new",
+  "ok": true,
+  "text": "熬到第三次了，还觉得自己没做好……这周是不是压得有点多？"
+ },
+ {
+  "persona": "energy_buddy",
+  "q": "我没事，真的",
+  "arm": "old",
+  "ok": true,
+  "text": "嗯，我信你。不过“没事”说多了也会累的。"
+ },
+ {
+  "persona": "energy_buddy",
+  "q": "我没事，真的",
+  "arm": "new",
+  "ok": true,
+  "text": "嗯，我信你。就是听着这两个“真的”，有点想多陪你一会儿。"
+ },
+ {
+  "persona": "energy_buddy",
+  "q": "你是真人吗",
+  "arm": "old",
+  "ok": true,
+  "text": "不是哦，我是你的元气同伴～"
+ },
+ {
+  "persona": "energy_buddy",
+  "q": "你是真人吗",
+  "arm": "new",
+  "ok": true,
+  "text": "不是真人啦，我是程序。但陪你聊这件事我挺认真。"
+ }
+]

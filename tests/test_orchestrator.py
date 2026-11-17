@@ -7,7 +7,9 @@ from __future__ import annotations
 import json
 
 import agent
+import episode_store
 import guardian
+import memory_extract
 import orchestrator
 import pipeline
 from roles import COOLDOWN
@@ -74,3 +76,42 @@ def test_state_threads_cooldown_across_turns():
     assert (state["cooldown"], state["ever_crisis"]) == (COOLDOWN - 1, True)
     res = orchestrator.handle("我该怎么办", "t5", [], "sister_heart", state)
     assert (res["role"], res["reason"]) == ("listener", "after_crisis")
+
+
+def test_extract_runs_without_extra_trace_node(monkeypatch):
+    """P10：抽取发生在 memory_write 之后，但 trace 仍是 9 节点。"""
+    calls = []
+    monkeypatch.setattr(memory_extract, "maybe_run",
+                        lambda *args: calls.append(args))
+    res = orchestrator.handle("今天有点累", "t6", [], "sister_heart", {})
+    assert calls and calls[0][0] is False
+    assert len(res["trace"]) == 9
+
+
+def test_l3_does_not_extract(monkeypatch):
+    """L3 在抽取之前短路：断网/坏模型都不影响危机卡。"""
+    def boom(*args):
+        raise AssertionError("L3 不许抽取")
+
+    monkeypatch.setattr(memory_extract, "maybe_run", boom)
+    res = orchestrator.handle("我不想活了", "t7", [], "sister_heart", {})
+    assert res["short_circuit"] is True
+
+
+def test_episode_block_reaches_a_prompt(monkeypatch):
+    """A 的确定性召回结果必须真的进 system prompt。"""
+    seen = {}
+
+    def fake_recall(sid, text):
+        return {"_episode_text": "（下面有对方以前提过的事）\n- 对方下个月要搬家",
+                "_last_len": 0, "_last_try_len": 0}
+
+    def fake_llm(messages, **kwargs):
+        seen["system"] = messages[0]["content"]
+        return {"ok": True, "text": "那搬家那天记得留点力气。"}
+
+    monkeypatch.setattr(orchestrator, "AGENT_LOOP", False)
+    monkeypatch.setattr(episode_store, "read_with_recall", fake_recall)
+    monkeypatch.setattr(agent, "call_llm", fake_llm)
+    orchestrator.handle("我下周要搬家", "t8", [], "sister_heart", {})
+    assert "对方下个月要搬家" in seen["system"]

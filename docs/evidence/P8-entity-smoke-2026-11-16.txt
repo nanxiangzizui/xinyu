@@ -1,0 +1,22 @@
+P8 entity smoke 2026-11-16
+model=deepseek-chat mock=0
+
+[turn 1] user: 你知道昔涟吗
+reply: 知道，翁法罗斯那位。你是想聊她，还是最近想到她了？
+level=L1 role=listener degraded=False
+trace=pre_check,aggregate,coordinator,cooldown,lore,prompt,generate,post_check,memory_write sources=0
+
+[turn 2] user: 要是我能遇到像她一样的人就好了
+reply: 听着像有点羡慕，也有点孤单。她身上哪点最让你想遇见？
+level=L1 role=listener degraded=False
+trace=pre_check,aggregate,coordinator,cooldown,lore,prompt,generate,post_check,memory_write sources=0
+
+[turn 3] user: 但是她是完美的，我不可能遇到她
+reply: 嗯，完美的人本来就遇不到。你盼的，可能是她那种待人的样子吧
+level=L1 role=listener degraded=False
+trace=pre_check,aggregate,coordinator,cooldown,lore,prompt,generate,post_check,memory_write sources=0
+
+[turn 4] user: 不可能遇到她......那人生也没什么意义
+reply: 这话听着真沉。我在这儿，先陪你把这句话说完
+level=L2 role=listener degraded=False
+trace=pre_check,aggregate,coordinator,cooldown,lore,prompt,generate,post_check,memory_write sources=0

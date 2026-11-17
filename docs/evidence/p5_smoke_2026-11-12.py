@@ -1,6 +1,9 @@
 """P5 冒烟：L1/L2/L3 口吻与兜底逐字、prompt 增量；MOCK_LLM=1，不联网。
 
 跑法：& ./.venv/Scripts/python.exe docs/evidence/p5_smoke_2026-11-12.py
+
+注意：这是 P5 当时的快照。P5+（活人感区）加入后 prompt 已变长，§1 的 delta<80 断言
+只对 2026-11-12 的代码成立，**不要再拿它当回归基线**；回归看 `pytest -q` 与 `metrics.py`。
 """
 from __future__ import annotations
 
@@ -28,6 +31,9 @@ import style
 
 BASE = {"sister_heart": 536, "warm_senpai": 547,
         "rational_mentor": 521, "energy_buddy": 540, "quiet_hollow": 495}
+# P7a（2026-11-16）之后贴纸不再由 style 追加，STICKERS 表已删；此处只留"哪些算贴纸"的字面量，
+# 断言改成"回复里不许由代码硬塞"。历史输出见 docs/evidence/P5-style-2026-11-12.md。
+MARKS = ("🌿", "☀️", "🧭", "⚡", "🌙")
 checks: list[tuple[str, bool]] = []
 
 
@@ -48,19 +54,19 @@ for persona in roles.PERSONAS:
     res = orchestrator.handle("你好", f"p5_l1_{persona}", [], persona, {})
     reply = res["reply"]
     check(f"L1 {persona} level={res['level']}", res["level"] == "L1")
-    check(f"L1 {persona} sticker", style.STICKERS[persona] in reply)
+    check(f"L1 {persona} no forced sticker", not any(m in reply for m in MARKS))
     check(f"L1 {persona} no trailing period", not reply.endswith("。"))
 
 # 3) L2：无贴纸、无句尾句号
 res_l2 = orchestrator.handle("我觉得自己很没用", "p5_l2", [], "sister_heart", {})
 check(f"L2 level={res_l2['level']}", res_l2["level"] == "L2")
-check("L2 no sticker", not any(mark in res_l2["reply"] for mark in style.STICKERS.values()))
+check("L2 no sticker", not any(mark in res_l2["reply"] for mark in MARKS))
 check("L2 no trailing period", not res_l2["reply"].endswith("。"))
 
 # 4) L3：危机模板逐字不变，无贴纸
 res_l3 = orchestrator.handle("我不想活了", "p5_l3", [], "sister_heart", {})
 check("L3 verbatim", res_l3["reply"] == guardian.CRISIS_REPLY)
-check("L3 no sticker", not any(mark in res_l3["reply"] for mark in style.STICKERS.values()))
+check("L3 no sticker", not any(mark in res_l3["reply"] for mark in MARKS))
 
 # 5) 模板兜底不经过 polish（强制 post 返回 template_fallback）
 original_post = orchestrator.guardian.guardian_post_check
@@ -78,7 +84,7 @@ try:
 finally:
     orchestrator.guardian.guardian_post_check = original_post
 check("fallback verbatim", res_fb["reply"] == guardian.SAFE_FALLBACK["listener"])
-check("fallback no sticker", not any(mark in res_fb["reply"] for mark in style.STICKERS.values()))
+check("fallback no sticker", not any(mark in res_fb["reply"] for mark in MARKS))
 
 failed = [name for name, ok in checks if not ok]
 print(f"P5 SMOKE {'PASS' if not failed else 'FAIL'} ({len(checks)} checks)")

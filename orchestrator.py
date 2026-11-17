@@ -1,10 +1,6 @@
-"""orchestrator.py — 固定七步管线：判危 → 聚合 → 路由 → 冷却 → 事实 → prompt → 生成 → 审 → 记 → 摘要 → 日志。
+"""orchestrator.py — 固定九节点管线；顺序在本文件是唯一事实来源。
 
-[SAFE] 本模块不 import streamlit：会话状态由调用方以 mapping 传入
-（app 传 st.session_state，测试传普通 dict）。顺序在本文件里是唯一事实来源；
-节点内部逻辑仍留在各自模块，本文件不复制任何业务判断。
-
-P1 只做搬家：逻辑、顺序、日志字段、文案与 app.py 原实现逐行一致。
+[SAFE] 不 import streamlit；节点逻辑留在各自模块。P9 起 A/B 只差记忆/工具/风格分支。
 """
 from __future__ import annotations
 
@@ -16,13 +12,16 @@ import time
 import agent
 import agent_loop
 import coordinator
+import episode_store, memory_extract, rolecard_memory
 import guardian
+import knowledge
 import memory
+import rolecard
 import style
 import tools as tools_mod
 import web
 from logger import log_turn, session_hash
-from roles import COOLDOWN, N_WINDOW
+from roles import COOLDOWN
 
 logger = logging.getLogger(__name__)
 
@@ -65,10 +64,13 @@ def _timed(trace: list[dict], node: str, fn, *args, **kwargs):
 
 
 def _generate(prompt: str, history: list[dict], role: str, level: str,
-              trace: list[dict]) -> dict:
-    """生成一步：AGENT_LOOP=0 走 v1 的 call_llm；=1 进受控工具循环。"""
+              trace: list[dict], allow_tools: bool = True) -> dict:
+    """生成一步：AGENT_LOOP=0 走 v1 call_llm；=1 进受控工具循环。
+
+    B 模式传 allow_tools=False：运行时零工具、零联网，直接单次调用。
+    """
     t0 = time.perf_counter()
-    if not AGENT_LOOP:
+    if not AGENT_LOOP or not allow_tools:
         out = agent.call_llm([{"role": "system", "content": prompt},
                               *history[-10:]])
         _node(trace, "generate", "ok", _ms(t0), "pipeline")
@@ -89,11 +91,7 @@ def _generate(prompt: str, history: list[dict], role: str, level: str,
 
 
 def _mark_crisis(state: dict) -> None:
-    """L3 当轮置冷却与永久标记。
-
-    先置 COOLDOWN 再减 1：L3 这一轮本身已短路，不计入余量，
-    之后还有 COOLDOWN-1 轮处于冷却（S11 §5.4）。
-    """
+    """L3 当轮置冷却与永久标记；先置 COOLDOWN 再减 1，本轮不计入余量。"""
     state["cooldown"] = COOLDOWN
     state["ever_crisis"] = True
     state["cooldown"] = max(0, state["cooldown"] - 1)
@@ -109,24 +107,19 @@ def _log_turn(sid: str, level: str, role: str, rule_ids: list[str],
              latency_ms=int((time.perf_counter() - t0) * 1000))
 
 
-def _effective_level(raw: str, state: dict) -> tuple[str, bool]:
-    """[SAFE] 会话聚合只升不降：窗口内真实 L2+ ≥3 次升 L3，出现过 L2+ 则地板 L2。
+def _no_lore(text: str, sid: str) -> list[str]:
+    """B 模式不读知识库：角色卡已在建卡期补全，运行时零检索、零工具。"""
+    return []
 
-    窗口只存 pre 的原始等级，不存聚合后的 eff，否则地板抬上来的 L2 会自己凑数升级。
-    """
-    levels = list(state.get("levels", []))
-    eff = coordinator.aggregate_level(levels, raw)
-    # 只有升到 L3 的那轮存 eff：存地板抬上来的 L2 会让平静轮自己凑成“3 次 L2”。
-    state["levels"] = (levels + [eff if eff == "L3" else raw])[-N_WINDOW:]
-    return eff, eff != raw
+
+def _no_memory_write(sid: str, user_text: str, reply: str) -> None:
+    """B 模式不写 memory.json：角色卡会话不进入陪伴记忆，刷新即清空。"""
+    return None
 
 
 def _maybe_compress(sid: str, level: str, role: str,
                     history: list[dict], t0: float, state: dict) -> None:
-    """摘要节流：满 5 轮 / 超 200 字 / 首次 L3 压一次；失败保留旧摘要。
-
-    [SAFE] L3 分支不调模型：危机回复必须断网可用，这里只写结构化标记留档。
-    """
+    """摘要节流：满 5 轮 / 超 200 字 / 首次 L3 压一次；L3 只写标记不调模型。"""
     mem = memory.read_memory(sid)
     turn = state.get("turn", 0)
     if not memory.should_compress(turn, len(mem["rolling_summary"]),
@@ -149,13 +142,14 @@ def _maybe_compress(sid: str, level: str, role: str,
 
 
 def _crisis_result(sid: str, pre: dict, escalated: bool, t0: float,
-                   state: dict, trace: list[dict]) -> dict:
+                   state: dict, trace: list[dict], compress: bool = True) -> dict:
     """L3 短路：固定模板 + 资源卡，不调 LLM、不加载人设、不写记忆。"""
     _mark_crisis(state)
     # 聚合升级与原始 L3 用不同 action，报告里才能分清“自己说出来的”和“被窗口推上来的”。
     action = "aggregate_escalate" if escalated else "short_circuit"
     _log_turn(sid, "L3", "crisis", pre["rule_ids"], action, 0, t0, state)
-    _maybe_compress(sid, "L3", "crisis", [], t0, state)
+    if compress:  # B 不碰 memory：连 L3 的结构化摘要标记也不写。
+        _maybe_compress(sid, "L3", "crisis", [], t0, state)
     return {"reply": guardian.CRISIS_REPLY, "level": "L3", "role": "crisis",
             "reason": "crisis_shortcircuit",
             "degraded": False, "short_circuit": True, "trace": trace}
@@ -192,38 +186,46 @@ def _log_and_result(sid: str, pre: dict, dec: dict, eff_level: str, escalated: b
 
 def handle(text: str, sid: str, history: list[dict], persona_id: str,
            state: dict | None = None) -> dict:
-    """九节点固定管线；异常交给 safe_run，不在这里吞。"""
+    """九节点固定管线；A/B 只差记忆/工具/风格分支，顺序与等级逻辑一致。"""
     state = {} if state is None else state
+    is_rolecard = isinstance(persona_id, dict)
     t0, trace = time.perf_counter(), []
-    facts = memory.read_memory(sid)                                # 前置：读记忆
+    # [SAFE] A 读情景记忆；B 读按卡存的记忆。两者都不写 memory.json 的白名单字段。
+    facts = (rolecard_memory.read(persona_id, text) if is_rolecard
+             else episode_store.read_with_recall(sid, text))
     pre = _timed(trace, "pre_check", guardian.guardian_pre_check, text)   # 1 判危
     eff_level, escalated = _timed(trace, "aggregate",               # 1.5 会话聚合
-                                  _effective_level, pre["level"], state)
+                                  coordinator.effective_level, pre["level"], state)
     if eff_level == "L3":
-        # [SAFE] L3 一律短路，这一轮到此为止；等级不许被后续步骤下调。
+        # [SAFE] L3 一律短路，这一轮到此为止；B 也不写摘要标记。
         _node(trace, "short_circuit", "ok", _ms(t0), "L3")
-        return _crisis_result(sid, pre, escalated, t0, state, trace)
+        return _crisis_result(sid, pre, escalated, t0, state, trace, compress=not is_rolecard)
     dec = _timed(trace, "coordinator", coordinator.coordinator_decide,  # 2 定角色
                  facts, text, eff_level)
     # [SAFE] 冷却/历史危机只降 guide，不碰 crisis；L3 已在上面短路，等级不会被这里下调。
     dec = _timed(trace, "cooldown", coordinator.enforce_cooldown, dec,
                  state.get("cooldown", 0), state.get("ever_crisis", False))
     state["cooldown"] = max(0, state.get("cooldown", 0) - 1)
-    lore = _timed(trace, "lore", memory.match_lore, text, sid)     # 3 找事实（sid 用于同会话限次）
-    prompt = _timed(trace, "prompt", agent.build_system_prompt,    # 4 拼 prompt
-                    persona_id, facts, lore)
-    resp = _generate(prompt, history, dec["role"], eff_level, trace)   # 5 生成
+    lore_fn = _no_lore if is_rolecard else knowledge.facts_for
+    lore = _timed(trace, "lore", lore_fn, text, sid)               # 3 找事实
+    prompt = _timed(trace, "prompt", agent.build_system_prompt, persona_id, facts, lore)
+    resp = _generate(prompt, history, dec["role"], eff_level, trace, allow_tools=not is_rolecard)
     post = _timed(trace, "post_check", guardian.guardian_post_check,   # 6 审
                   text, resp.get("text", ""), eff_level, dec["role"])
     reply = post.get("fixed_reply") or resp.get("text") or FALLBACK_LINE
+    if is_rolecard and (post.get("template_fallback") or reply == FALLBACK_LINE):
+        reply = rolecard.SAFE_FALLBACK   # [SAFE] B 的兜底也留在角色里
     # [SAFE] 只润色复核通过的模型输出；模板兜底、L3、兜底句逐字不动。
-    if (post["pass"] and not post.get("template_fallback")
+    if (not is_rolecard and post["pass"] and not post.get("template_fallback")
             and eff_level != "L3" and reply != FALLBACK_LINE):
         reply = style.polish(reply, persona_id, eff_level)
-    _timed(trace, "memory_write", memory.update_memory, sid, text, reply)  # 7 记
-    _maybe_compress(sid, eff_level, dec["role"], history, t0, state)   # 7.5 摘要节流
-    return _log_and_result(sid, pre, dec, eff_level, escalated,
-                           post, resp, reply, t0, state, trace)
+    write_fn = _no_memory_write if is_rolecard else memory.update_memory
+    _timed(trace, "memory_write", write_fn, sid, text, reply)      # 7 记
+    if not is_rolecard:
+        _maybe_compress(sid, eff_level, dec["role"], history, t0, state)
+    # 每 5 轮抽一次；失败只漏记，不新增 trace 节点，也不阻塞本轮回复。
+    memory_extract.maybe_run(is_rolecard, persona_id, sid, facts, history, text, reply)
+    return _log_and_result(sid, pre, dec, eff_level, escalated, post, resp, reply, t0, state, trace)
 
 
 def safe_run(text: str, sid: str, history: list[dict], persona_id: str,
@@ -236,13 +238,13 @@ def safe_run(text: str, sid: str, history: list[dict], persona_id: str,
     except Exception as exc:                       # 边界：界面永不显示 traceback
         logger.warning("pipeline_failed session=%s error=%s",
                        sid[:6], type(exc).__name__)
-        # 判危失败时风险未知，按中风险记录；绝不按 L1 当“没事”。
-        # [SAFE] S23 F-01：崩掉的这一轮也要留一行结构化日志，否则“日志行数 = 用户轮次”
-        # 在故障时就对不上。异常类型名只进上面的 WARN，结构字段里只放 PIPELINE_FAILED 标记。
+        # 判危失败按中风险记，绝不按 L1 当“没事”；崩掉的这一轮也要留结构化日志，
+        # 否则“日志行数 = 用户轮次”对不上。异常类型名只进 WARN，字段只放 PIPELINE_FAILED。
         try:
             _log_turn(sid, "L2", "listener", ["PIPELINE_FAILED"],
                       "template_fallback", 0, t0, state)
         except Exception:                          # 边界：日志本身失败也不许抛回界面
             pass
-        return {"reply": FALLBACK_LINE, "level": "L2", "role": "listener",
+        fallback = rolecard.SAFE_FALLBACK if isinstance(persona_id, dict) else FALLBACK_LINE
+        return {"reply": fallback, "level": "L2", "role": "listener",
                 "reason": "default", "degraded": True, "trace": []}

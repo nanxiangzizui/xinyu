@@ -1,0 +1,11 @@
+P8b e2e smoke 2026-11-16
+model=deepseek-chat provider=auto allow_web=1
+
+user: 帮我查一下昔涟的配音演员是谁
+reply: 我查了一下，没找到明确写着她配音演员的可靠信息，所以不敢乱说。你要是想确认，官方角色介绍页最准
+level=L1 role=listener degraded=False
+tools_used=2 sources=3
+trace=pre_check,aggregate,coordinator,cooldown,lore,prompt,generate,post_check,memory_write
+source: 崩坏：星穹铁道/配音 | https://mzh.moegirl.org.cn/%E5%B4%A9%E5%9D%8F%EF%BC%9A%E6%98%9F%E7%A9%B9%E9%93%81%E9%81%93/%E9%85%8D%E9%9F%B3
+source: 崩坏：星穹铁道/配音 | https://zh.moegirl.org.cn/%E5%B4%A9%E5%9D%8F%EF%BC%9A%E6%98%9F%E7%A9%B9%E9%93%81%E9%81%93/%E9%85%8D%E9%9F%B3
+source: 【游戏】《崩坏：星穹铁道》配音表 | https://m.douban.com/group/topic/267519595/

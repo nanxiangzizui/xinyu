@@ -1,0 +1,7 @@
+# P8b 真实 provider smoke（2026-11-16）
+
+中文/ACG → 博查: provider=bocha err=ok count=5
+  first=《崩坏:星穹铁道》冰属性记忆「昔涟」光锥、遗器、组队应用推荐-崩坏星穹铁道国际服手游攻略-OurPlay加速器 | https://www.ourplay.net/find/detail/192493
+英文/技术 → Tavily: provider=tavily err=ok count=5
+  first=Cyrene (Honkai: Star Rail) - Wikipedia | https://en.wikipedia.org/wiki/Cyrene_(Honkai:_Star_Rail)
+PASS

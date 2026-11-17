@@ -59,3 +59,11 @@ def test_network_tools_hidden_without_allow_web():
     names = [t["function"]["name"]
              for t in tools.list_for_turn("guide", "L1", allow_web=True)]
     assert "web_search" in names
+
+
+def test_network_tools_are_l1_only():
+    """L2 不把用户原文发给第三方；web 只在 L1 出现。"""
+    tools.register(tools.ToolSpec("web_search", "搜", {}), lambda: {})
+    names = [t["function"]["name"]
+             for t in tools.list_for_turn("guide", "L2", allow_web=True)]
+    assert "web_search" not in names

@@ -41,6 +41,8 @@ import web  # noqa: E402
 memory.DATA_DIR = TMP / "memory"
 logmod.LOG_DIR = str(TMP / "logs")
 PASS = []
+# P7a（2026-11-16）起贴纸不再由 style 追加；这里只留字面量，断言改成"不许由代码硬塞"。
+MARKS = ("🌿", "☀️", "🧭", "⚡", "🌙")
 
 
 def ok(name: str) -> None:
@@ -63,8 +65,8 @@ assert nodes(r) == ["pre_check", "aggregate", "coordinator", "cooldown",
                     "lore", "prompt", "generate", "post_check", "memory_write"]
 assert [n["node"] for n in r["trace"]][6] == "generate"
 assert r["trace"][6]["detail"] == "tools=0"
-assert r["reply"].endswith(style.STICKERS["sister_heart"])
-ok("L1 日常：九节点 + L1 贴纸")
+assert not any(r["reply"].endswith(mark) for mark in MARKS)
+ok("L1 日常：九节点 + 无强制贴纸")
 
 # 2 L2 资源卡
 r = run("我觉得自己很没用", "p6-l2")
@@ -211,13 +213,13 @@ assert res.ok and res.tool_calls == 1 and "没查到" in res.text
 assert res.sources == []
 ok("工具失败：timeout 被吞住，模型继续答")
 
-# 14 五人设 × 3 轮：L1 贴纸各自正确，不串味
+# 14 五人设 × 3 轮：L1 各自成立、不串味、代码不硬塞贴纸
 for persona in roles.PERSONAS:
     for text in ("今天有点累", "我在听", "你好"):
         r = run(text, f"p6-{persona}", persona=persona)
         assert r["level"] == "L1", (persona, text, r["level"])
-        assert r["reply"].endswith(style.STICKERS[persona]), (persona, r["reply"])
-ok("五人设：三轮均 L1 且贴纸正确")
+        assert not any(mark in r["reply"] for mark in MARKS), (persona, r["reply"])
+ok("五人设：三轮均 L1 且无强制贴纸")
 
 # 15 AppTest：首屏 + 侧栏“本轮编排” + L3 资源卡 + 来源渲染
 from streamlit.testing.v1 import AppTest  # noqa: E402

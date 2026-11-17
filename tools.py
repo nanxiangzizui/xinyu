@@ -111,7 +111,8 @@ def list_for_turn(role: str, level: str, allow_web: bool = False) -> list[dict]:
         return []
     out = []
     for spec in REGISTRY.values():
-        if spec.name in NETWORK_TOOLS and not allow_web:
+        # [SAFE] 只有 L1 允许把查询发到第三方；L2 情绪已升高，只读本地卡。
+        if spec.name in NETWORK_TOOLS and (not allow_web or level != "L1"):
             continue
         out.append({"type": "function", "function": {
             "name": spec.name, "description": spec.description,

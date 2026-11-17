@@ -8,6 +8,7 @@ from __future__ import annotations
 import json
 import logging
 import os
+import re
 import time
 import urllib.error
 import urllib.parse
@@ -22,13 +23,16 @@ WEB_TIMEOUT_S = 6
 MAX_RESULTS = 5
 QUERY_MAX_CHARS = 80
 TITLE_MAX = 60
-SNIPPET_MAX = 160
+SNIPPET_MAX = 400
 SOURCES_MAX = 3
 ERRORS = ("timeout", "http_401", "http_429", "bad_json",
           "too_large", "empty", "bad_url")
 PRIVATE_HOSTS = ("localhost", "127.", "10.", "192.168.", "169.254.",
                  "0.0.0.0", "::1")
-DEFAULT_ENDPOINT = "https://api.bochaai.com/v1/web-search"   # D-1 定了再改
+BOCHA_ENDPOINT = "https://api.bocha.cn/v1/web-search"
+TAVILY_ENDPOINT = "https://api.tavily.com/search"
+DEFAULT_ENDPOINT = BOCHA_ENDPOINT
+CJK_RE = re.compile(r"[\u4e00-\u9fff]")
 
 
 def _is_private_host(host: str) -> bool:
@@ -92,16 +96,75 @@ def _post_json(url: str, payload: dict, headers: dict,
         return None, "bad_json"
 
 
-def _normalize(data: object) -> tuple[dict | None, str]:
-    """只挑 title/url/snippet 三个字段；形状不对按 bad_json，合法但 0 条按空列表。"""
-    provider = os.environ.get("WEB_PROVIDER", "custom")
+def _has_cjk(text: str) -> bool:
+    """中文查询走博查；纯英文 / 技术查询走 Tavily。"""
+    return bool(CJK_RE.search(text))
+
+
+def _key_for(provider: str) -> str:
+    """按 provider 取专用 key；WEB_API_KEY 只作旧配置兜底。"""
+    name = "BOCHA_API_KEY" if provider == "bocha" else "TAVILY_API_KEY"
+    return os.environ.get(name, "") or os.environ.get("WEB_API_KEY", "")
+
+
+def _pick_provider(query: str) -> str:
+    """显式 provider 优先；auto 按语言分流，缺 key 时退到另一家。"""
+    forced = os.environ.get("WEB_PROVIDER", "auto").strip().lower()
+    if forced in ("bocha", "tavily"):
+        return forced
+    preferred = "bocha" if _has_cjk(query) else "tavily"
+    other = "tavily" if preferred == "bocha" else "bocha"
+    return preferred if _key_for(preferred) else (other if _key_for(other) else preferred)
+
+
+def _endpoint_for(provider: str) -> str:
+    """两家 endpoint 分开配；旧 WEB_ENDPOINT 不再参与，避免串到另一家。"""
+    if provider == "bocha":
+        return os.environ.get("BOCHA_ENDPOINT", DEFAULT_ENDPOINT)
+    return os.environ.get("TAVILY_ENDPOINT", TAVILY_ENDPOINT)
+
+
+def _payload_for(provider: str, query: str) -> dict:
+    """博查用 count；Tavily 用 max_results，且只要 snippet，不要正文。"""
+    if provider == "bocha":
+        return {"query": query, "count": MAX_RESULTS}
+    return {"query": query, "search_depth": "basic", "max_results": MAX_RESULTS,
+            "include_answer": False, "include_raw_content": False}
+
+
+def _body_error(data: object) -> str:
+    """博查 HTTP 200 也可能带 code=401/429；不能只看 HTTP status。"""
+    if not isinstance(data, dict) or data.get("code") is None:
+        return ""
+    code = str(data.get("code"))
+    if code == "200":
+        return ""
+    if code in ("401", "403"):
+        return "http_401"
+    return "http_429" if code == "429" else "bad_json"
+
+
+def _rows(data: dict) -> list | None:
+    """兼容博查 data.webPages.value 与旧/顶层 webPages、Tavily results。"""
+    pages = data.get("webPages")
+    if isinstance(pages, dict) and isinstance(pages.get("value"), list):
+        return pages["value"]
+    inner = data.get("data")
+    if isinstance(inner, dict):
+        pages = inner.get("webPages")
+        if isinstance(pages, dict) and isinstance(pages.get("value"), list):
+            return pages["value"]
+        if isinstance(inner.get("results"), list):
+            return inner["results"]
+    return data["results"] if isinstance(data.get("results"), list) else None
+
+
+def _normalize(data: object, provider: str) -> tuple[dict | None, str]:
+    """优先解博查 data.webPages.value，其次 Tavily results；只挑三字段。"""
     if not isinstance(data, dict):
         return None, "bad_json"
-    pages = data.get("webPages")
-    raw = pages.get("value") if isinstance(pages, dict) else None
+    raw = _rows(data)
     if raw is None:
-        raw = data.get("results")
-    if not isinstance(raw, list):
         return None, "bad_json"
     items = []
     for row in raw[:MAX_RESULTS]:
@@ -110,26 +173,31 @@ def _normalize(data: object) -> tuple[dict | None, str]:
         url = str(row.get("url") or "").strip()
         if not is_safe_url(url):
             continue
+        snippet = row.get("snippet") or row.get("content") or row.get("summary") or ""
         items.append({
             "title": str(row.get("name") or row.get("title") or "")[:TITLE_MAX],
             "url": url,
-            "snippet": str(row.get("snippet") or row.get("content") or "")[:SNIPPET_MAX],
+            "snippet": str(snippet)[:SNIPPET_MAX],
         })
     return {"items": items, "provider": provider}, ""
 
 
-def _search_remote(query: str, *, fetch=None) -> tuple[dict | None, str]:
-    """D-1 定了 provider 后，整个函数替换成该家的请求；其余代码不动。"""
-    endpoint = os.environ.get("WEB_ENDPOINT", DEFAULT_ENDPOINT)
-    key = os.environ.get("WEB_API_KEY", "")
+def _search_remote(query: str, *, fetch=None,
+                   provider: str | None = None) -> tuple[dict | None, str]:
+    """选 provider → 取专用 key → 发一次请求 → 解包 + body code 映射。"""
+    provider = provider or _pick_provider(query)
+    key = _key_for(provider)
     if not key:
         return None, "http_401"          # 没配 key 与 key 错，对模型是同一件事
     fetch = fetch or _fetch
-    data, err = _post_json(endpoint, {"query": query, "count": MAX_RESULTS},
+    data, err = _post_json(_endpoint_for(provider), _payload_for(provider, query),
                            {"Authorization": f"Bearer {key}"}, fetch, WEB_TIMEOUT_S)
     if err:
         return None, err
-    return _normalize(data)
+    err = _body_error(data)
+    if err:
+        return None, err
+    return _normalize(data, provider)
 
 
 def search(query: str, *, fetch=None) -> tuple[dict | None, str]:
@@ -138,12 +206,13 @@ def search(query: str, *, fetch=None) -> tuple[dict | None, str]:
     if not safe:
         return None, "empty"
     t0 = time.perf_counter()
-    data, err = _search_remote(safe, fetch=fetch)
+    provider = _pick_provider(safe)
+    data, err = _search_remote(safe, fetch=fetch, provider=provider)
     ms = int((time.perf_counter() - t0) * 1000)
     count = len((data or {}).get("items") or [])
     # 日志只记四个计数；query 与结果原文一律不进日志。
     logger.info("web provider=%s status=%s ms=%d count=%d",
-                os.environ.get("WEB_PROVIDER", "custom"), err or "ok", ms, count)
+                provider, err or "ok", ms, count)
     if not err and count == 0:
         return None, "empty"
     return (None, err) if err else (data, "")
@@ -172,7 +241,7 @@ def _handler(query: str) -> dict:
 def register_tools() -> None:
     """把 web_search 注册进白名单；是否暴露给模型由 ALLOW_WEB 决定。"""
     tools.register(
-        tools.ToolSpec("web_search", "检索公开资料（只读）",
+        tools.ToolSpec("web_search", "查你不确定的人名、角色、作品、梗或事件（只读，只查专名，可带作品名）",
                        {"type": "object",
                         "properties": {"query": {"type": "string"}},
                         "required": ["query"]},

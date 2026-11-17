@@ -10,8 +10,8 @@
 | | |
 |---|---|
 | 计划 | ✅ 执行书已冻结（文件内版本 v1.2）|
-| 代码 | ✅ v2 P0–P6a 完成（`agent-v2` 分支，`v1.0` 为回退点）：`pytest` **176 passed**（v1 基线 132 + P1 5 + P2 13 + P3 9 + P4 7 + P5 9 + P6 1），`AGENT_LOOP=0/1` 双跑均 176；`contract_check` **11/11 + 5/5 + 20/20**；四指标 10/10、0/20、12/12、10/10；16 条 v2 场景与三条破坏性验证通过；P3b 真实检索等 key，P5b 盲读 / 真机待人工 |
-| 材料 | 🟨 四份齐：[项目文档](docs/01_项目文档.docx)（**26 页**，正文 16 页 + 附录 A–D）· [项目方案](docs/02_项目方案.pptx)（**17 页**）· [演示视频](docs/03_演示视频.mp4)（**300 秒，仍是 v1 合成版，待重录**）· [原型说明](docs/04_原型说明.md)；提交包已打并解压实测（**167 文件，176 passed**），现场彩排待做 |
+| 代码 | ✅ **v3.0**（2026-11-17，`main` + `agent-v2`，`v1.0` / `v2.0` 为回退点）：P0–P10 完成；`pytest` **348 passed**；`contract_check` **11/11 + 5/5 + 20/20**；四指标 10/10、0/20、12/12、10/10；双模式角色卡、建卡期真实检索、A 情景记忆 + B 角色卡长期记忆；线上 <https://xinyu-mindisle.streamlit.app> |
+| 材料 | 🟨 四份齐：[项目文档](docs/01_项目文档.docx)（**26 页**，正文 16 页 + 附录 A–D）· [项目方案](docs/02_项目方案.pptx)（**17 页**）· [演示视频](docs/03_演示视频.mp4)（**300 秒，仍是 v1 合成版，待重录**）· [原型说明](docs/04_原型说明.md)；**材料数字仍是 v2.0 口径**（176 / 167 文件），v3 重打包时统一回填 348；现场彩排待做 |
 | 交付 | 4 周出可演示版本 + 3 天材料期，6 人小队 |
 | 赛事 | 杭州电子科技大学第二届 AIGC 应用创新大赛 · **赛题一（AI 辅助开发·创意产品原型）** |
 
@@ -79,7 +79,15 @@ pytest -q
 ├─ agent_loop.py     ★v2 P2/P4：受控工具循环（步数 / 工具次数 / 总超时 / 门禁 / 来源过滤）
 ├─ tools.py          ★v2 P2：白名单 / schema / 执行 / 超时 / 大小上限
 ├─ web.py            ★v2 P3a：web_search（scrub / 七类错误码 / 来源校验）
-├─ style.py          ★v2 P5a：口吻层（句尾 / 五人设贴纸 / tone hint，只润色复核通过的输出）
+├─ style.py          ★v2 P5a：口吻层（句尾 / tone hint / 活人感规则，只润色复核通过的输出）
+├─ rolecard.py       ★v3：角色卡校验 / B 模式 prompt / 免责与对话规则
+├─ rolecard_ui.py    ★v3：建卡 gate / B 模式聊天 / 自动盲点补全
+├─ rolecard_form.py  ★v3：建卡表单 / 认知编辑 / 继承上一张卡
+├─ rolecard_enrich.py / rolecard_focus.py / rolecard_gap.py / rolecard_wiki.py  ★v3：建卡期检索与盲点
+├─ episode_store.py  ★v3：A 情景记忆（24 条，cue 召回）
+├─ memory_extract.py ★v3：每 5 轮一次 LLM 抽取（A 情景 / B 卡记忆）
+├─ rolecard_memory.py ★v3：B 角色卡长期记忆（60 条）
+├─ chat_ui.py        ★v3：A/B 共用聊天渲染 / 连发合并 / 轮次
 ├─ agent.py          call_llm / build_system_prompt / safe_json / 重试 / MOCK 剧本（生成 / 摘要 / 复核 / 重写）
 ├─ roles.py          5 套人设卡 + RULES 20 条（唯一来源）
 ├─ coordinator.py    三角色状态机 + 会话聚合 + 只升不降
@@ -91,12 +99,13 @@ pytest -q
 ├─ theme.py          三套配色 sakura / matcha / sunset + CSS 变量注入
 ├─ metrics.py        四指标脚本（只读测试集，不调模型）
 ├─ contract_check.py 11 个签名 + 5 个常量 + 20 条规则校验
-├─ step/             S01–S26 分步执行手册（v1 历史，只读）
-├─ tests/            test_guardian(52) / test_memory(26) / test_flow(21) / test_theme(7)
-│                    test_agent(6) / test_roles(6) / test_log(2) / test_fault(8) / test_metrics(4)
-│                    test_orchestrator(5) / test_tools(7) / test_agent_loop(7) / test_web(9) / test_tool_gate(7)
-│                    test_style(9)（v2 P1–P6）
-│                    —— 合计 176（考核要求 48）
+├─ docs/v1-steps/    S01–S26 分步执行手册（v1 历史，只读；原 step/ 已归档到这里）
+├─ tests/            v1 基线 132 + v2/v3 增量 216 = 348
+│                    test_guardian / memory / flow / theme / agent / roles / log / fault / metrics
+│                    test_orchestrator / tools / agent_loop / web / tool_gate / style / speech / turn
+│                    test_knowledge / rolecard / rolecard_flow / rolecard_app / rolecard_enrich
+│                    test_rolecard_gap / rolecard_wiki / episode_store / memory_extract / rolecard_memory
+│                    —— 合计 348（考核要求 48）
 ├─ data/memory/      memory.json（不进仓库）
 └─ docs/             项目文档、PPT、证据、比赛要求
    └─ v2-steps/      P1–P6 编排式单 Agent 分步执行手册（v2 增量）

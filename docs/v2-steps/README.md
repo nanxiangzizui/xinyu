@@ -6,7 +6,7 @@
 - 分支：`agent-v2`（`main` 不动，`v1.0` 是回退点）
 - 与 `step/` 的关系：`step/S01–S26` 是 v1 的历史手册，**只读不改**；v2 的一切操作写在本目录。
 
-## 0 怎么用这六份文档
+## 0 怎么用这些文档
 
 | 时机 | 动作 |
 |---|---|
@@ -26,7 +26,7 @@ app.py（纯 UI）→ orchestrator.safe_run()
    → style（口吻层，L3 与模板兜底不碰）→ 日志 + trace
 ```
 
-## 1 六个节点一览
+## 1 阶段一览
 
 | 节点 | 操作文档 | 依赖 | 允许动的文件 | 出口（可验证） | 预估 |
 |---|---|---|---|---|---|
@@ -36,6 +36,8 @@ app.py（纯 UI）→ orchestrator.safe_run()
 | **P4** | [`P4-guardian-tool-gate.md`](P4-guardian-tool-gate.md) | P2（P3 可缺省） | `guardian.py`（+1 函数）、`agent_loop.py`（gate/sources）、`orchestrator.py`（翻转 flag）、`panel.py`（+render_trace）、`app.py` | **166 passed**；越权工具被拦；trace 无原文；来源由代码渲染；`AGENT_LOOP` 默认 1 | 1–2 天 |
 | **P5** | [`P5-style-layer.md`](P5-style-layer.md) | P1（可与 P2 并行） | 新 `style.py`、`agent.py`（`_style_block` 一行）、`orchestrator.py`（一处）、新 `tests/test_style.py` | **175 passed**；L3 模板逐字不变；L2 无贴纸；L1 无句尾句号；prompt 增量 <80 字 | 2 天 |
 | **P6** | [`P6-regression-materials.md`](P6-regression-materials.md) | P1–P5 | 材料、证据、数字回填；**不改业务代码** | Gate A 成立；**176 passed**；docx/PPT/视频/提交包数字一致 | 3–5 天 |
+| **P7** | [`P7-real-user-regression.md`](P7-real-user-regression.md) | P5+（在 P6b 之前） | `style.py`、`roles.py`（emoji 文案 + W02）、`guardian.py`（DIAG）、`app.py`、测试 | **199 passed**（P7a/P7b/P7c 全部落地）；贴纸不再强制 ✅；**连发 3 条 = 1 次回复** ✅；`你可能有抑郁倾向` 被拦 ✅ / "人生没什么意义"落 L2（误拦仍 0/20）✅ | 2–3 天 |
+| **P9** | [`P9-two-mode-rolecard.md`](P9-two-mode-rolecard.md) | P7 / P8（219 基线） | 新 `rolecard.py` / `rolecard_enrich.py` / `rolecard_ui.py` / `chat_ui.py`；`agent.py` / `orchestrator.py` / `coordinator.py` / `app.py`；测试 | **已实现：P9 268 + P9g 4 = 272 passed**；A 219 旧全绿；免责 gate / B 无 memory / B 无 tools / L3 退出 / A-B 隔离；**B 内一切从角色认知出发，真人/AI 问题也先按角色回答，追问 AI 答“不是”（AI 角色例外）**；建卡期检索补全（P9g：voice/story/world/relationship）| 5–7 天 |
 
 > **候选设计（未决策，不是开工依据）**：[`P3-content-retrieval-design.md`](P3-content-retrieval-design.md) 记录“本地轻量识别 → orchestrator 路由 → MCP/HTTP 取风格 / 贴纸 / 图片”的三层方案。它**不改计划书与 D-1~D-5**；其中 C0（纯本地识别）可先做，C1 起仍等 D-1。转正前不许按它改代码。
 
@@ -101,6 +103,10 @@ $env:MOCK_LLM="1"; .\.venv\Scripts\streamlit.exe run app.py # 手动两轮：一
 | `tools.py`（新） | 200 | — | ~190 |
 | `web.py`（P3 新） | 250 | — | ~230 |
 | `style.py`（P5 新） | 180 | — | ~120 |
+| `rolecard.py`（P9 新） | 350（目标 180） | **233** | ≤233 |
+| `rolecard_enrich.py`（P9 新） | 350（目标 160） | **185** | ≤185 |
+| `rolecard_ui.py`（P9 新） | 350（目标 300） | **307** | ≤307 |
+| `chat_ui.py`（P9 新） | 120 | **46** | ≤46 |
 | `agent.py` | 300 | 207 | ≤300（+`chat_with_tools`） |
 | `guardian.py` | 350 | 305 | ≤340（+`guardian_tool_check`） |
 | `panel.py` | 350 | 118 | ≤160（+`render_trace`） |
@@ -135,4 +141,7 @@ $env:MOCK_LLM="1"; .\.venv\Scripts\streamlit.exe run app.py # 手动两轮：一
 
 - 2026-11-12：按计划书 §4 拆出 P1–P6 六份操作文档（每份 11 节：做什么 / 关键决策 / 接口 / 前置 / 执行步骤 / 测试 / 验证 / 常见失败 / 回滚 / 出口 / 回执）；未改任何代码。
 - 2026-11-12：新增候选设计 `P3-content-retrieval-design.md`（本地识别 + host 路由 + MCP 取内容），不改计划与 D-1~D-5。
+- 2026-11-16：新增 **P9 双模式（陪伴模式 + 角色卡模式）计划书**；只写计划，代码零改动，219 不变。四项已拍板决策见 P9 文档 §2.1；A 内语气模仿默认不做（P9e）。
+- 2026-11-17：按用户追加修正更新 P9：**B 内一切行为从角色认知出发**；被问本人先按角色回答、追问才答“是”；被问真人用角色世界观（“来自……，与你不是同一个时空”），不说“这是角色扮演”；被问 AI 追问答“不是”，卡明确 AI 时例外；已知虚构角色在**建卡阶段**检索补全（P9f），B 对话运行时仍零工具/零联网；新增 `rolecard_enrich.py`，卡 schema 加 `origin/work`。
+- 2026-11-17：P9 + P9g **落地**：272 passed；建卡检索扩到 voice/story/world/relationship（8 条 ×60 字），新增角色认知 `lore`（≤360），B prompt 上限 1600，`web.SNIPPET_MAX=400`；`rolecard.py` 233 / `rolecard_enrich.py` 185 / `rolecard_ui.py` 307 / `chat_ui.py` 46。
 - 各节点出口条数：137 → 150 → 159（P3a）→ 166 → 175 → 176。

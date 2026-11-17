@@ -21,7 +21,23 @@ data/memory/*.bak
 data/memory/*.tmp
 data/memory_backup/*.json
 data/logs/*.jsonl
+# 最近一张角色卡（「继承上一张」用）：本地便利数据，不进仓库
+# DATA_DIR 默认 data/memory，所以实际落盘在 data/memory/rolecards/
+data/rolecards/*.json
+data/rolecards/*.tmp
+data/memory/rolecards/*.json
+data/memory/rolecards/*.tmp
+# A 情景记忆（P10）：与 memory.json 分开存，清空时一起删
+data/memory/episodes/*.json
+data/memory/episodes/*.bak
+data/memory/episodes/*.tmp
 !.gitkeep
+
+# ---- 本地人工测试记录（含真人对话，绝不进仓库）----
+真人测试/
+测试*.txt
+/in
+pytest-of-*/
 
 # ---- 证据与产物 ----
 # 只忽略根目录的临时证据夹；docs/evidence/ 是正式证据，必须入库

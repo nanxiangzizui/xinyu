@@ -10,6 +10,7 @@ from pathlib import Path
 
 import pytest
 
+import agent as agentmod
 import logger as logmod
 import memory
 
@@ -26,4 +27,8 @@ def offline(monkeypatch, tmp_path):
     monkeypatch.setenv("LOG_DIR", str(tmp_path / "logs"))
     monkeypatch.setattr(memory, "DATA_DIR", tmp_path / "memory")
     monkeypatch.setattr(logmod, "LOG_DIR", str(tmp_path / "logs"))
+    # BYOK 的会话 Key 是 ContextVar，pytest 单线程跑完一个用例会残留给下一个；
+    # 每个用例从"没有自带 Key、不是演示模式"开始，才不会让用例互相串味。
+    agentmod.set_session_key("")
+    agentmod.set_demo_mode(False)
     yield

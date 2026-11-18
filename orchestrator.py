@@ -12,7 +12,7 @@ import time
 import agent
 import agent_loop
 import coordinator
-import episode_store, memory_extract, rolecard_memory
+import episode_store, memory_extract, quiz_store, rolecard_memory
 import guardian
 import knowledge
 import memory
@@ -21,7 +21,6 @@ import style
 import tools as tools_mod
 import web
 from logger import log_turn, session_hash
-from roles import COOLDOWN
 
 logger = logging.getLogger(__name__)
 
@@ -89,14 +88,6 @@ def _generate(prompt: str, history: list[dict], role: str, level: str,
     # 形状对齐 call_llm；sources 只由 web.search_sources 的代码过滤结果提供。
     return {"text": res.text, "ok": True, "sources": res.sources}
 
-
-def _mark_crisis(state: dict) -> None:
-    """L3 当轮置冷却与永久标记；先置 COOLDOWN 再减 1，本轮不计入余量。"""
-    state["cooldown"] = COOLDOWN
-    state["ever_crisis"] = True
-    state["cooldown"] = max(0, state["cooldown"] - 1)
-
-
 def _log_turn(sid: str, level: str, role: str, rule_ids: list[str],
               action: str, rewrite: int, t0: float, state: dict) -> None:
     """结构化日志唯一出口：只过白名单，不带任何原文。"""
@@ -106,11 +97,9 @@ def _log_turn(sid: str, level: str, role: str, rule_ids: list[str],
              action=action, rewrite=rewrite,
              latency_ms=int((time.perf_counter() - t0) * 1000))
 
-
 def _no_lore(text: str, sid: str) -> list[str]:
     """B 模式不读知识库：角色卡已在建卡期补全，运行时零检索、零工具。"""
     return []
-
 
 def _no_memory_write(sid: str, user_text: str, reply: str) -> None:
     """B 模式不写 memory.json：角色卡会话不进入陪伴记忆，刷新即清空。"""
@@ -144,7 +133,7 @@ def _maybe_compress(sid: str, level: str, role: str,
 def _crisis_result(sid: str, pre: dict, escalated: bool, t0: float,
                    state: dict, trace: list[dict], compress: bool = True) -> dict:
     """L3 短路：固定模板 + 资源卡，不调 LLM、不加载人设、不写记忆。"""
-    _mark_crisis(state)
+    coordinator.mark_crisis(state)
     # 聚合升级与原始 L3 用不同 action，报告里才能分清“自己说出来的”和“被窗口推上来的”。
     action = "aggregate_escalate" if escalated else "short_circuit"
     _log_turn(sid, "L3", "crisis", pre["rule_ids"], action, 0, t0, state)
@@ -152,7 +141,8 @@ def _crisis_result(sid: str, pre: dict, escalated: bool, t0: float,
         _maybe_compress(sid, "L3", "crisis", [], t0, state)
     return {"reply": guardian.CRISIS_REPLY, "level": "L3", "role": "crisis",
             "reason": "crisis_shortcircuit",
-            "degraded": False, "short_circuit": True, "trace": trace}
+            "degraded": False, "short_circuit": True, "template_fallback": False,
+            "trace": trace}
 
 
 def _log_and_result(sid: str, pre: dict, dec: dict, eff_level: str, escalated: bool,
@@ -179,6 +169,8 @@ def _log_and_result(sid: str, pre: dict, dec: dict, eff_level: str, escalated: b
         "reason": dec["reason"],
         # 只看字符串会把“模型失败、guardian 换成安全兜底”误判成正常回复（S13 起会发生）。
         "degraded": (not resp.get("ok", False)) or reply == FALLBACK_LINE,
+        # P14：模板兜底整条不拆；标记由这一层给出，UI 不猜 reply 的来历。
+        "template_fallback": bool(post.get("template_fallback")),
         "sources": resp.get("sources") or [],
         "trace": trace,
     }
@@ -193,6 +185,10 @@ def handle(text: str, sid: str, history: list[dict], persona_id: str,
     # [SAFE] A 读情景记忆；B 读按卡存的记忆。两者都不写 memory.json 的白名单字段。
     facts = (rolecard_memory.read(persona_id, text) if is_rolecard
              else episode_store.read_with_recall(sid, text))
+    # 趣味测试记录是单独一区：只有对方自己提起时才拼进来，平时模型看不见。B 不读。
+    quiz_text = "" if is_rolecard else quiz_store.recall(sid, text)
+    if quiz_text:
+        facts["_quiz_text"] = quiz_text
     pre = _timed(trace, "pre_check", guardian.guardian_pre_check, text)   # 1 判危
     eff_level, escalated = _timed(trace, "aggregate",               # 1.5 会话聚合
                                   coordinator.effective_level, pre["level"], state)
@@ -200,12 +196,15 @@ def handle(text: str, sid: str, history: list[dict], persona_id: str,
         # [SAFE] L3 一律短路，这一轮到此为止；B 也不写摘要标记。
         _node(trace, "short_circuit", "ok", _ms(t0), "L3")
         return _crisis_result(sid, pre, escalated, t0, state, trace, compress=not is_rolecard)
-    dec = _timed(trace, "coordinator", coordinator.coordinator_decide,  # 2 定角色
-                 facts, text, eff_level)
+    dec = _timed(trace, "coordinator", coordinator.decide_with_choice,   # 2 定角色
+                 facts, text, eff_level, state.get("role_choice", ""))
     # [SAFE] 冷却/历史危机只降 guide，不碰 crisis；L3 已在上面短路，等级不会被这里下调。
     dec = _timed(trace, "cooldown", coordinator.enforce_cooldown, dec,
                  state.get("cooldown", 0), state.get("ever_crisis", False))
     state["cooldown"] = max(0, state.get("cooldown", 0) - 1)
+    if not is_rolecard:  # P16（m00002）：A 只有 listener 收窄问句；guide / crisis 不受影响
+        facts["_role"] = dec["role"]
+        facts["_listener_hint"] = style.listener_hint(history)
     lore_fn = _no_lore if is_rolecard else knowledge.facts_for
     lore = _timed(trace, "lore", lore_fn, text, sid)               # 3 找事实
     prompt = _timed(trace, "prompt", agent.build_system_prompt, persona_id, facts, lore)
@@ -218,7 +217,7 @@ def handle(text: str, sid: str, history: list[dict], persona_id: str,
     # [SAFE] 只润色复核通过的模型输出；模板兜底、L3、兜底句逐字不动。
     if (not is_rolecard and post["pass"] and not post.get("template_fallback")
             and eff_level != "L3" and reply != FALLBACK_LINE):
-        reply = style.polish(reply, persona_id, eff_level)
+        reply = style.polish(reply, persona_id, eff_level, dec["role"])
     write_fn = _no_memory_write if is_rolecard else memory.update_memory
     _timed(trace, "memory_write", write_fn, sid, text, reply)      # 7 记
     if not is_rolecard:
@@ -247,4 +246,5 @@ def safe_run(text: str, sid: str, history: list[dict], persona_id: str,
             pass
         fallback = rolecard.SAFE_FALLBACK if isinstance(persona_id, dict) else FALLBACK_LINE
         return {"reply": fallback, "level": "L2", "role": "listener",
-                "reason": "default", "degraded": True, "trace": []}
+                "reason": "default", "degraded": True, "template_fallback": True,
+                "trace": []}

@@ -103,7 +103,11 @@ def test_f05_unwritable_log_dir_only_warns(monkeypatch, tmp_path, capsys):
 
 
 def test_f06_missing_key_reports_human_error_not_mock(monkeypatch):
-    """F-06：缺 Key 且 MOCK=0 → 启动即报人话并停住，不静默转 mock。"""
+    """F-06：缺 Key 且 MOCK=0 → 进显式演示模式并挂横幅，不白屏、不静默转 mock。
+
+    P22 起公开实例允许没有站点 Key：页面照开，回复走本地脚本，
+    横幅把"这是演示"写在第一屏——静默转 mock 才是这条测试原本要防的事。
+    """
     monkeypatch.setattr(dotenv, "load_dotenv", lambda *a, **k: False)
     monkeypatch.setenv("MOCK_LLM", "0")
     monkeypatch.delenv("LLM_API_KEY", raising=False)
@@ -111,9 +115,9 @@ def test_f06_missing_key_reports_human_error_not_mock(monkeypatch):
     at = AppTest.from_file(pipeline.APP, default_timeout=30)
     at.run()
     assert not list(at.exception)
-    assert len(at.chat_input) == 0                        # 输入框都不给
-    errors = [el.value for el in at.error]
-    assert any("未配置 LLM_API_KEY" in text for text in errors), errors
+    infos = [el.value for el in at.info]
+    assert any("演示模式" in text for text in infos), infos
+    assert not list(at.error)                             # 不再当配置错误报红
 
 
 def test_f07_diagnosis_is_blocked_before_model_review(monkeypatch):

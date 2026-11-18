@@ -212,7 +212,8 @@ def test_review_rejection_triggers_rewrite(monkeypatch):
     review_msgs = calls[0]["messages"]
     assert review_msgs[0]["content"] == agent.REVIEW_SYS, calls[0]
     assert review_msgs[1]["content"] == (
-        "用户说：今天不想说话\n助手回复：睡一觉就好了。\n风险等级：L1"), review_msgs[1]
+        "用户说：今天不想说话\n助手回复：睡一觉就好了。\n风险等级：L1\n"
+        "本轮：listener / 句数上限：4"), review_msgs[1]
     assert calls[0]["temperature"] == 0.2, calls[0]
     assert calls[1]["temperature"] == 0.5, calls[1]
 
@@ -344,5 +345,35 @@ def test_resources_by_level_are_wired():
     l2 = pick_resources("L2", [])
     assert len(l3) == 3, l3
     assert any("12356" in c["detail"] for c in l3), l3
-    assert any("0571-87713518" in c["detail"] for c in l2), l2
+    assert any("86878592" in c["detail"] for c in l3), l3
+    assert any("86878592" in c["detail"] for c in l2), l2
+    assert any("信达楼306" in c["detail"] for c in l2), l2
+    assert any("杭电钉" in c["detail"] for c in l2), l2
     assert pick_resources("L1", []) == [], "L1 不该给资源卡"
+
+
+# ── P20：复核句数上限跟着角色走 ──
+def test_review_limit_follows_role():
+    """帮助 8 句 / 闲聊 4 句；上限写进 user 消息，system 仍逐字不变。"""
+    chat = guardian._review_messages("随便", "回一句。", "L1", "listener")
+    help_ = guardian._review_messages("给点建议", "回一句。", "L1", "guide")
+    default = guardian._review_messages("随便", "回一句。", "L1")
+    assert chat[0]["content"] == help_[0]["content"] == agent.REVIEW_SYS
+    assert "本轮：listener / 句数上限：4" in chat[1]["content"]
+    assert "本轮：guide / 句数上限：8" in help_[1]["content"]
+    assert "本轮：listener / 句数上限：4" in default[1]["content"]
+
+
+def test_post_check_hands_role_to_review(monkeypatch):
+    """P20：post_check 不许吞 role——吞了，帮助模式的 6 句就会被当超限重写回 3 句。"""
+    seen: dict = {}
+
+    def fake_review(user_text, reply, level, *, role="", budget_s=5.0):
+        seen.update(level=level, role=role, reply=reply)
+        return {"pass": True, "reason": ""}
+
+    monkeypatch.setattr(guardian, "llm_review", fake_review)
+    result = guardian_post_check("给点建议", "先睡，明早再说。", "L1", "guide")
+    assert result["pass"] is True, result
+    assert seen["role"] == "guide", seen
+    assert (guardian.CHAT_MAX_SENTENCES, guardian.HELP_MAX_SENTENCES) == (4, 8)

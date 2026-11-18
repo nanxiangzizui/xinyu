@@ -92,12 +92,15 @@ def test_registered_tool_hidden_without_allow_web(monkeypatch):
     assert "web_search" in names
 
 
-def test_tool_description_is_entity_lookup(monkeypatch):
-    """P8：模型只有看到工具描述才知道该查专名，而不是查「怎么安慰人」。"""
+def test_tool_description_covers_everyday_howto(monkeypatch):
+    """P20：除了专名，睡眠 / 饮食这类“具体怎么做”也要允许查——
+    工具描述只写专名，帮助模式就只剩空话。隐私仍不许查。"""
     monkeypatch.setenv("WEB_API_KEY", "k")
     web.register_tools()
     description = tools.REGISTRY["web_search"].description
-    assert "人名" in description and "角色" in description and "专名" in description
+    assert "具体做法" in description and "睡眠" in description
+    assert "人名" in description and "角色" in description
+    assert "隐私" in description
 
 
 def json_body(obj):

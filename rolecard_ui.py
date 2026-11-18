@@ -4,6 +4,7 @@
 rolecard_focus.py。边界：B 的对话只在 rc_messages，刷新即空；不读 memory.json、
 不调 memory.update_memory。长期记忆按卡存在 rolecard_memory（默认
 $DATA_DIR/rolecards/<card_key>.json），刷新后同卡还在；侧栏可单独清空。
+L3 后只暂停，确认安全可继续同一会话；这次事件进不可淘汰的重点记忆。
 唯一另一处落盘是「上一张卡」（$DATA_DIR/rolecards/last.json），只存卡字段，
 供建卡页一键继承，不进 memory.json、不进日志。
 """
@@ -151,7 +152,10 @@ def _finish_turn(state: dict, result: dict) -> None:
     state["last_level"] = result["level"]
     state["last_reason"] = result.get("reason", "default")
     if result["level"] == "L3":
-        # D9-6：L3 结束整个 B 会话，不继续角色扮演；重跑后只留资源与出口。
+        # [SAFE] P12：L3 先暂停整个 B 会话；这次事件进重点记忆，风险等级不降。
+        card = st.session_state.get("rc_card")
+        if isinstance(card, dict):
+            rolecard_memory.mark_crisis(card)
         st.session_state.rc_ended = True
         st.rerun()
 
@@ -172,34 +176,46 @@ def render_chat(card: dict, sid: str, state: dict) -> None:
     with st.chat_message("user"):
         st.markdown(text)
     card, gap = _maybe_fill_gap(merged, card)
-    with st.chat_message("assistant"):
-        hint_card = dict(card)
-        hint = rolecard.question_hint(st.session_state.rc_messages)
-        if hint:
-            hint_card["_hint"] = hint
-        gap_lines = st.session_state.get("rc_gap_lines") or []
-        if gap_lines:
-            hint_card["_gap"] = gap_lines
-        with st.spinner("我在听…"):
-            result = safe_run(merged, sid, history, hint_card, state)
-        st.session_state.rc_messages.append({
-            "role": "assistant", "content": result["reply"],
-            "sources": result.get("sources") or [], "gap": gap})
-        st.markdown(result["reply"])
+    hint_card = dict(card)
+    hint = rolecard.question_hint(st.session_state.rc_messages)
+    if hint:
+        hint_card["_hint"] = hint
+    gap_lines = st.session_state.get("rc_gap_lines") or []
+    if gap_lines:
+        hint_card["_gap"] = gap_lines
+    with st.spinner("我在听…"):
+        result = safe_run(merged, sid, history, hint_card, state)
+    parts = chat_ui.reply_parts(result)
+    st.session_state.rc_messages.append({
+        "role": "assistant", "content": result["reply"],
+        "sources": result.get("sources") or [], "gap": gap, "parts": parts})
+
+    def extra() -> None:
         chat_ui.render_gap(gap)
         for item in pick_resources(result["level"], []):
             st.info(f"{item['title']}：{item['detail']}")
+
+    chat_ui.render_reply(parts, animate=True, extra=extra)
     # 盲点资料只服务这一轮；历史里保留了 gap 备注，下一轮不再喂回 prompt。
     st.session_state.rc_gap_lines = []
     _finish_turn(state, result)
 
 
 def render_ended() -> None:
-    """L3 之后：历史可见、输入关闭，只给资源与两个出口。"""
+    """L3 之后：历史可见、输入关闭；确认安全后可继续同一会话。"""
     chat_ui.render_history(st.session_state.rc_messages)
-    st.warning("这次角色对话已结束。先把安全放在前面。")
+    st.warning("这次角色对话先停在这里。先把安全放在前面。")
     for item in pick_resources("L3", []):
         st.info(f"{item['title']}：{item['detail']}")
+    st.markdown("**如果想继续聊，请先调整好自己的状态，并确认现在是安全的。**")
+    st.caption("如果还在危险里，请先联系上面的人。")
+    if st.button("我好些了，继续吧", key="rc_resume"):
+        # [SAFE] 只恢复对话入口，不重置 rc_state：下一轮仍按 L2 地板起算。
+        card = st.session_state.get("rc_card")
+        if isinstance(card, dict):
+            rolecard_memory.mark_resumed(card)
+        st.session_state.rc_ended = False
+        st.rerun()
     cols = st.columns(2)
     if cols[0].button("重新开始", key="rc_restart"):
         _reset_session(st.session_state.rc_card)   # 同一张卡、新会话
@@ -212,11 +228,15 @@ def render_ended() -> None:
 def render_sidebar(state: dict) -> None:
     """B 的侧栏：只读 rc_state 与这张卡的记忆文件；不读 memory.json。"""
     with st.sidebar:
+        if st.button("回首页", key="rc_home"):
+            st.session_state["mode"] = "home"
+            st.rerun()
         st.caption(f"角色卡模式 · 第 {state.get('turn', 0)} 轮")
         if st.session_state.get("rc_card") is not None:
             st.button("换一张卡", key="rc_change_card", on_click=_change_card)
             episodes, summary_len = rolecard_memory.stats(st.session_state.rc_card)
-            st.caption(f"记得 {episodes} 段 · 摘要 {summary_len} 字")
+            keys = rolecard_memory.key_count(st.session_state.rc_card)
+            st.caption(f"记得 {episodes} 段 · 重点 {keys} 条 · 摘要 {summary_len} 字")
             if st.button("清空这张卡的记忆", key="rc_clear_memory"):
                 rolecard_memory.clear(st.session_state.rc_card)
                 st.rerun()

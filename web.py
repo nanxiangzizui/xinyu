@@ -241,7 +241,9 @@ def _handler(query: str) -> dict:
 def register_tools() -> None:
     """把 web_search 注册进白名单；是否暴露给模型由 ALLOW_WEB 决定。"""
     tools.register(
-        tools.ToolSpec("web_search", "查你不确定的人名、角色、作品、梗或事件（只读，只查专名，可带作品名）",
+        tools.ToolSpec("web_search",
+                       "查公开资料：具体做法（睡眠、饮食、运动、学习方法）、常识、近期信息、本地公开信息，"
+                       "也可以查人名、角色、作品、梗或事件（只读；不查个人隐私）",
                        {"type": "object",
                         "properties": {"query": {"type": "string"}},
                         "required": ["query"]},

@@ -1,16 +1,21 @@
 """coordinator.py — 三角色状态机 + 会话聚合 + 只升不降。"""
 from __future__ import annotations
 
-from roles import N_WINDOW
+from roles import COOLDOWN, N_WINDOW
 
 # 求助词表：宁窄勿宽。只收明确的“要我给办法”，不收“怎么”这种半句，
 # 否则“怎么又下雨了”也会切 guide（S11 §8）。
-ADVICE_WORDS = ("怎么办", "建议", "该不该", "如何", "怎么选", "帮我分析", "要不要")
+ADVICE_WORDS = ("怎么办", "建议", "该不该", "如何", "怎么选", "帮我分析", "要不要",
+                "有没有办法", "怎么才能", "咋办", "帮帮我", "教教我")
 
 # dec.reason 固定枚举（执行书 §11 五条约定第 3 条）：
 # sustained_negative 留给 S16 会话聚合，本步不会产出。
+# user_choice 只由 apply_role_choice 产出：侧栏手动选角色时把原因说清楚。
 REASONS = ("crisis_shortcircuit", "user_ask_advice", "sustained_negative",
-           "default", "crisis_cooldown", "after_crisis")
+           "default", "crisis_cooldown", "after_crisis", "user_choice")
+
+# 界面可手动切的两个角色。crisis 不开放：它只由 L3 触发，L3 轮在 orchestrator 已短路。
+ROLE_CHOICES = ("listener", "guide")
 
 
 def coordinator_decide(memory: dict, user_text: str, level: str) -> dict:
@@ -33,6 +38,30 @@ def coordinator_decide(memory: dict, user_text: str, level: str) -> dict:
     return {"role": "listener", "reason": "default"}
 
 
+def apply_role_choice(decision: dict, choice: str) -> dict:
+    """用户的侧栏选择只改 listener / guide；空值或 auto 时原样返回。
+
+    [SAFE] 必须排在 enforce_cooldown 之前：危机后永不回 guide 是安全口径，
+    手动选择要一起被冷却压回去，不能从界面绕过。
+    [SAFE] crisis 不许被改成别的：L3 在 orchestrator 已短路，这里再挡一层，
+    以后调用点挪位置也不会出现“危机轮按普通角色答”。
+    """
+    if not isinstance(decision, dict) or choice not in ROLE_CHOICES:
+        return decision
+    if decision.get("role") in (choice, "crisis"):
+        return decision
+    return {"role": choice, "reason": "user_choice"}
+
+
+def decide_with_choice(memory: dict, user_text: str, level: str, choice: str = "") -> dict:
+    """先按状态机定角色，再接侧栏的手动选择（orchestrator 的 coordinator 节点用它）。
+
+    [SAFE] 手动选择必须夹在“定角色”和“冷却”之间：冷却节点拿到的才是最终角色，
+    危机后的永久降级才压得住它；绕开这一步就等于界面能改安全口径。
+    """
+    return apply_role_choice(coordinator_decide(memory, user_text, level), choice)
+
+
 def enforce_cooldown(decision: dict, cooldown_left: int, ever_crisis: bool) -> dict:
     """冷却期内把 guide 降为 listener；本会话有过危机则永不回 guide。
 
@@ -46,6 +75,17 @@ def enforce_cooldown(decision: dict, cooldown_left: int, ever_crisis: bool) -> d
     if isinstance(cooldown_left, int) and cooldown_left > 0:
         return {"role": "listener", "reason": "crisis_cooldown"}
     return decision
+
+
+def mark_crisis(state: dict) -> None:
+    """L3 当轮置冷却与永久标记；先置 COOLDOWN 再减 1，本轮不计入余量。
+
+    P13 从 orchestrator 搬来：它只改会话状态，和 enforce_cooldown 记的是同一套账。
+    为什么不能少：冷却与 ever_crisis 是“crisis 之后永不回 guide”的唯一依据。
+    """
+    state["cooldown"] = COOLDOWN
+    state["ever_crisis"] = True
+    state["cooldown"] = max(0, state["cooldown"] - 1)
 
 # ---- S16：会话聚合 + 风险地板 ----
 RANK = {"L1": 1, "L2": 2, "L3": 3}

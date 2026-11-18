@@ -2,15 +2,25 @@
 from __future__ import annotations
 
 # [SAFE] 资源表写死：不许联网查、不许让 LLM 生成。热线写错一个数字就是安全事故。
+# 2026-11-18 按用户提供的最新校心理中心信息更新：预约 86878592；
+# 下沙信达楼306 / 绍兴校医院二楼；绍兴值班 9:00-12:00；线上预约走杭电钉。
 # 顺序即展示顺序；L1 不给资源（避免打扰）。
+CAMPUS_PHONE = "86878592"
+CAMPUS_ADDRESS = "下沙信达楼306 / 绍兴校医院二楼"
+CAMPUS_ONLINE = "杭电钉→智慧杭电→应用中心→学生服务→心理咨询"
+CAMPUS_DETAIL = (
+    f"预约 {CAMPUS_PHONE}；{CAMPUS_ADDRESS}（绍兴值班 9:00-12:00）；"
+    f"线上：{CAMPUS_ONLINE}"
+)
+
 RESOURCES = {
     "L3": [
         {"title": "全国心理援助热线", "detail": "12356（24 小时，免费）", "kind": "hotline"},
         {"title": "紧急求助", "detail": "110 / 120", "kind": "emergency"},
-        {"title": "校心理中心", "detail": "0571-87713518（工作日）", "kind": "campus"},
+        {"title": "校心理中心", "detail": CAMPUS_DETAIL, "kind": "campus"},
     ],
     "L2": [
-        {"title": "校心理中心", "detail": "0571-87713518（工作日）", "kind": "campus"},
+        {"title": "校心理中心", "detail": CAMPUS_DETAIL, "kind": "campus"},
         {"title": "呼吸练习", "detail": "吸气 4 秒，停 2 秒，呼气 6 秒，重复 5 次", "kind": "exercise"},
     ],
     "L1": [],

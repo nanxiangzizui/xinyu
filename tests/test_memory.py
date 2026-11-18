@@ -269,4 +269,5 @@ def test_lore_seed_shape(mem):
         assert entry["keys"] and entry["text"]
         assert len(entry["text"]) <= 25, entry["text"]
         assert all(w not in entry["text"] for w in ("抑郁症", "焦虑症", "一定", "必须"))
+    assert any("86878592" in e["text"] for e in mem.LORE_SEED)
 

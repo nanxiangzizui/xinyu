@@ -290,8 +290,13 @@ def test_disclaimer_roleplay_and_network():
     assert "自动联网补全" in DISCLAIMER
 
 
+def test_disclaimer_explains_pause_and_resume():
+    assert "先暂停" in DISCLAIMER
+    assert "确认安全" in DISCLAIMER
+
+
 def test_disclaimer_has_resources():
-    for item in ("120", "110", "12356", "0571-87713518"):
+    for item in ("120", "110", "12356", "86878592"):
         assert item in DISCLAIMER
 
 

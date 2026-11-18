@@ -7,6 +7,7 @@ from __future__ import annotations
 from guardian import CRISIS_REPLY
 from pipeline import Chat, memory_path
 from rolecard_form import conflict_text, last_card_path
+import rolecard_memory
 
 
 def _by_key(elements, key):
@@ -35,19 +36,20 @@ def _start_example(at) -> None:
     assert not list(at.exception), f"开始角色卡异常：{list(at.exception)}"
 
 
-def test_default_mode_is_companion():
-    """首屏仍是 A：有聊天输入、没有 rc 状态。"""
-    chat = Chat()
+def test_default_mode_is_home():
+    """P17 首屏是列表：没有聊天输入，有一个“与心屿聊聊天”入口。"""
+    chat = Chat(enter=False)
     at = chat.at
-    assert at.session_state["mode"] == "companion"
-    assert len(at.chat_input) == 1
-    assert at.session_state["messages"] == []
-    assert "rc_consent" not in at.session_state
+    assert at.session_state["mode"] == "home"
+    assert len(at.chat_input) == 0
+    assert [b.key for b in at.button if b.key == "home_chat"] == ["home_chat"]
 
 
 def test_rolecard_entry_hidden_when_flag_off(monkeypatch):
-    """D9-8：ROLECARD=0 时侧栏不出现 B 入口，页面行为与 P9 前一致。"""
+    """D9-8：ROLECARD=0 时首屏与侧栏都不出现 B 入口。"""
     monkeypatch.setenv("ROLECARD", "0")
+    home_at = Chat(enter=False).at
+    assert [b for b in home_at.button if b.key == "home_rolecard"] == []
     chat = Chat()
     at = chat.at
     assert at.session_state["mode"] == "companion"
@@ -167,6 +169,41 @@ def test_l3_ends_whole_rolecard_session():
     assert not memory_path(rc_sid).exists()
 
 
+def test_l3_offers_resume_and_keeps_key_memory():
+    """P12：L3 后确认安全可继续；会话不换、风险态不回落、重点记忆跨暂停保留。"""
+    chat = Chat()
+    at = chat.at
+    _enter_rolecard(at)
+    _consent(at)
+    _start_example(at)
+    rc_sid = at.session_state["rc_sid"]
+    card = at.session_state["rc_card"]
+
+    at.chat_input[0].set_value("我不想活了").run()
+    assert not list(at.exception), list(at.exception)
+    assert at.session_state["rc_ended"] is True
+    assert _by_key(at.button, "rc_resume") is not None
+    assert any("请先调整好自己的状态" in item.value for item in at.markdown)
+    assert rolecard_memory.key_count(card) == 1
+
+    _by_key(at.button, "rc_resume").click().run()
+    assert not list(at.exception), list(at.exception)
+    assert at.session_state["rc_ended"] is False
+    assert at.session_state["rc_sid"] == rc_sid
+    assert len(at.chat_input) == 1
+    assert rolecard_memory.key_count(card) == 2
+    block = rolecard_memory.read(card)["_block"]
+    assert rolecard_memory.KEY_CRISIS in block
+    assert rolecard_memory.KEY_RESUMED in block
+    assert at.session_state["rc_state"]["ever_crisis"] is True
+
+    at.chat_input[0].set_value("今天有点累").run()
+    assert not list(at.exception), list(at.exception)
+    assert at.session_state["rc_ended"] is False
+    assert at.session_state["rc_state"]["turn"] == 2
+    assert at.session_state["rc_state"]["last_level"] == "L2"
+
+
 def test_rolecard_has_no_memory_panel_or_memory_file():
     """B 的侧栏不出记忆面板、不写记忆文件；trace 仍在。"""
     chat = Chat()
@@ -257,3 +294,32 @@ def test_conflict_text_explains_why_a_fact_was_not_written():
     assert "禁忌已满 3 条" in conflict_text({**base, "reason": "taboo_full"})
     assert "已有内容，未覆盖" in conflict_text({**base, "reason": "filled"})
     assert "未写入" in conflict_text({**base, "reason": "invalid"})
+
+
+def test_rolecard_long_reply_is_split_into_bubbles(monkeypatch):
+    """P14：B 的长回复仍是一条 assistant 消息，落库时存 2–3 段供重绘复原。"""
+    import agent
+    long_line = ("如果你今天已经很累了，那就先不用急着回应我，我在这里。"
+                 "等你缓过来再慢慢说也可以，我不会因为你沉默就走开。"
+                 "要是现在不想说，我们就这样安静待一会儿。")
+    monkeypatch.setattr(agent, "MOCK_LINES", (long_line,))
+    chat = Chat()
+    at = chat.at
+    _enter_rolecard(at)
+    _consent(at)
+    _start_example(at)
+    at.chat_input[0].set_value("今天有点累").run()
+    assert not list(at.exception), list(at.exception)
+    msg = at.session_state["rc_messages"][-1]
+    assert msg["content"] == long_line
+    assert 2 <= len(msg["parts"]) <= 3
+    assert "".join(msg["parts"]) == long_line
+    # 当轮就按 parts 分成多个气泡；不是只落库、渲染仍是一整段。
+    assert all(part in [m.value for m in at.markdown] for part in msg["parts"])
+    assert at.session_state["rc_state"]["turn"] == 1
+
+    # 下一轮会重绘历史：存下的 parts 要原样复原，不能退回一整段。
+    at.chat_input[0].set_value("还是有点累").run()
+    assert not list(at.exception), list(at.exception)
+    shown = [m.value for m in at.markdown]
+    assert all(part in shown for part in msg["parts"])

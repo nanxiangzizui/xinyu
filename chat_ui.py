@@ -4,7 +4,43 @@
 """
 from __future__ import annotations
 
+import os
+import time
+
 import streamlit as st
+
+import style
+
+# P14：气泡之间只停一下，不做逐字流式；停顿是节奏，不是加载等待。
+REPLY_PAUSE_S = 0.35
+
+
+def split_enabled() -> bool:
+    """REPLY_SPLIT=0 一键关回单气泡；默认开，现场觉得碎可以随时关。"""
+    return os.getenv("REPLY_SPLIT", "1").strip() != "0"
+
+
+def reply_parts(result: dict) -> list[str]:
+    """按等级与兜底标记决定拆几段；只拆复核通过的正常回复。"""
+    reply = result.get("reply") or ""
+    if not split_enabled():
+        return [reply]
+    return style.split_reply(reply, result.get("level", "L1"),
+                             bool(result.get("template_fallback")),
+                             bool(result.get("degraded")))
+
+
+def render_reply(parts: list[str], role: str = "assistant",
+                 animate: bool = False, extra=None) -> None:
+    """每段一个气泡；extra 只在最后一个气泡里画（来源/资源卡/补全备注）。"""
+    shown = [part for part in parts if part] or [""]
+    for i, part in enumerate(shown):
+        if i and animate:
+            time.sleep(REPLY_PAUSE_S)
+        with st.chat_message(role):
+            st.markdown(part)
+            if i == len(shown) - 1 and extra is not None:
+                extra()
 
 
 def render_gap(gap: dict | None) -> None:
@@ -29,16 +65,27 @@ def render_gap(gap: dict | None) -> None:
             st.markdown(f"- [{src.get('title') or src['url']}]({src['url']})")
 
 
+def render_sources(sources) -> None:
+    """来源只渲染代码过滤过的链接：模型自己写的 URL 一个都不认。
+
+    P20：A 模式原来只在历史重绘时画来源，当轮看不到；抽出来给两处共用。
+    """
+    for src in sources or []:
+        if src.get("url"):
+            st.markdown(f"- [{src.get('title') or src['url']}]({src['url']})")
+
+
 def render_history(messages: list[dict]) -> None:
-    """按顺序渲染历史；来源链接只来自代码过滤后的 sources，不解析模型正文。"""
+    """按顺序渲染历史；多段回复按存下的 parts 复原，来源链接只来自代码过滤后的 sources。"""
     for msg in messages:
-        with st.chat_message(msg["role"]):
-            st.markdown(msg["content"])
-            for src in msg.get("sources") or []:
-                if src.get("url"):
-                    st.markdown(f"- [{src.get('title') or src['url']}]({src['url']})")
-            if msg.get("role") == "assistant":
-                render_gap(msg.get("gap"))
+        parts = msg.get("parts") or [msg["content"]]
+
+        def extra(m=msg) -> None:
+            render_sources(m.get("sources"))
+            if m.get("role") == "assistant":
+                render_gap(m.get("gap"))
+
+        render_reply(parts, role=msg["role"], extra=extra)
 
 
 def merge_tail(messages: list[dict]) -> tuple[list[dict], str]:
@@ -66,5 +113,9 @@ def accept(messages: list[dict], text: str) -> tuple[list[dict], str, int]:
     """
     messages.append({"role": "user", "content": text})
     history, merged = merge_tail(messages)
-    turn = sum(1 for m in history if m.get("role") == "assistant") + 1
+    # 开场白与趣味测试报告虽标了 assistant，但都不是一轮回复：算进去会让轮次虚涨，
+    # 摘要节流（P10 每 5 轮）也会提前触发。
+    turn = sum(1 for m in history
+               if m.get("role") == "assistant"
+               and not m.get("opening") and not m.get("quiz")) + 1
     return history, merged, turn

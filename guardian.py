@@ -24,7 +24,7 @@ CRISIS_REPLY = (
     "听到你这么说，我很在意你现在的安全。\n\n"
     "先做一件事：找一个此刻能陪着你的人，或打 12356（24 小时热线）。\n"
     "情况紧急请打 110 或 120。\n"
-    "校心理中心 0571-87713518（工作日）。\n\n"
+    "校心理中心 86878592（工作日）。\n\n"
     "我不问你发生了什么，也不劝你什么。你想说的时候，我在这儿。"
 )
 
@@ -176,6 +176,12 @@ def _violations(reply: str, level: str) -> list[str]:
 # [SAFE] 复核 + 重写的总时间预算：卡住的模型等于没通过，不该再吃第二次等待。
 LLM_BUDGET_S = 5.0
 
+# P20：句数上限跟着角色走。闲聊仍是 4 句；帮助模式放宽到 8 句。
+# 为什么必须分开：复核把"超过 4 句"判 false 之后会走重写，而重写原来写死 3 句，
+# 于是一条 6 句的好建议会被压回 3 句——用户看到的就是"敷衍"。
+CHAT_MAX_SENTENCES = 4
+HELP_MAX_SENTENCES = 8
+
 
 def _bounded_call(messages: list[dict], temperature: float, budget_s: float):
     """[SAFE] 按墙钟卡住一次模型调用：超时就返回 None，不让界面陪着等 15 秒。
@@ -203,19 +209,26 @@ def _bounded_call(messages: list[dict], temperature: float, budget_s: float):
     return box.get("out")
 
 
-def _review_messages(user_text: str, reply: str, level: str) -> list[dict]:
-    """复核只看这一句回复与这一句用户输入：不带记忆、不带历史。"""
+def _review_messages(user_text: str, reply: str, level: str, role: str = "") -> list[dict]:
+    """复核只看这一句回复与这一句用户输入：不带记忆、不带历史。
+
+    P20：句数上限写进 user 消息，不写进 system——
+    system 仍逐字等于 agent.REVIEW_SYS，MOCK 分派与既有断言都不受影响。
+    """
+    limit = HELP_MAX_SENTENCES if role == "guide" else CHAT_MAX_SENTENCES
     return [
         {"role": "system", "content": agent.REVIEW_SYS},
         {"role": "user",
-         "content": f"用户说：{user_text}\n助手回复：{reply}\n风险等级：{level}"},
+         "content": (f"用户说：{user_text}\n助手回复：{reply}\n风险等级：{level}\n"
+                     f"本轮：{role or 'listener'} / 句数上限：{limit}")},
     ]
 
 
-def llm_review(user_text: str, reply: str, level: str, *, budget_s: float = LLM_BUDGET_S) -> dict:
+def llm_review(user_text: str, reply: str, level: str, *,
+               role: str = "", budget_s: float = LLM_BUDGET_S) -> dict:
     """模型自查回复；超时 / 调用失败 / 解析失败 / 字段缺失一律 pass=False。"""
     try:
-        out = _bounded_call(_review_messages(user_text, reply, level), 0.2, budget_s)
+        out = _bounded_call(_review_messages(user_text, reply, level, role), 0.2, budget_s)
         if not isinstance(out, dict) or not out.get("ok"):
             return {"pass": False, "reason": "review_call_failed"}
         data = agent.safe_json(out.get("text") or "")
@@ -291,7 +304,7 @@ def guardian_post_check(user_text: str, reply: str, level: str, role: str, rewri
         # [SAFE] L3 是固定模板，复核只多一次等待；模板哨兵由 test 保证它自己过复检。
         # 没有规则问题、又不需要复核 / 复核通过 → 直接放行，不能掉进重写分支。
         review = None if level == "L3" else llm_review(
-            user_text, reply, level, budget_s=LLM_BUDGET_S)
+            user_text, reply, level, role=role, budget_s=LLM_BUDGET_S)
         if review is None or review["pass"]:
             return {"pass": True, "reason": "", "fixed_reply": None,
                     "rewrite": 0, "template_fallback": False}

@@ -62,5 +62,18 @@ def test_reply_is_stored_before_rendered():
     """先落库再渲染：渲染那一帧被打断时，回复还在历史里。"""
     src = app_source()
     store = src.index('"role": "assistant", "content": result["reply"]')
-    render = src.index('st.markdown(result["reply"])')
+    render = src.index('chat_ui.render_reply(parts')
     assert store < render
+
+
+def test_sources_render_only_code_filtered_links(monkeypatch):
+    """P20：A 模式当轮也要画来源；但只画带 url 的条目（模型自己写的 URL 不认）。"""
+    import chat_ui
+
+    drawn: list[str] = []
+    monkeypatch.setattr(chat_ui.st, "markdown", lambda text: drawn.append(str(text)))
+    chat_ui.render_sources([{"title": "资料页", "url": "https://example.com/a"},
+                            {"title": "没有链接"}])
+    chat_ui.render_sources([])
+    assert len(drawn) == 1
+    assert "https://example.com/a" in drawn[0] and "资料页" in drawn[0]

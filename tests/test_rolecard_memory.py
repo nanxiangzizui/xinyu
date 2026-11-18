@@ -112,3 +112,43 @@ def test_block_header_and_cap():
     block = rolecard_memory.read(CARD, "看雪")["_block"]
     assert block.startswith("（这是你和对方一起经历过的")
     assert len(block) <= rolecard_memory.BLOCK_MAX
+
+
+def test_key_memory_always_visible_and_survives_cap():
+    """重点记忆不吃 cue、不被 60 条上限淘汰，且排在摘要前。"""
+    rolecard_memory.mark_crisis(CARD)
+    rolecard_memory.mark_resumed(CARD)
+    assert rolecard_memory.key_count(CARD) == 2
+
+    path = memory.DATA_DIR / "rolecards" / f"{rolecard_memory.card_key(CARD)}.json"
+    store = episode_store.read_json(path)
+    store["summary"] = "你们一起看过雪"
+    store["episodes"] = [{"cue": "词" + chr(0x4E00 + i), "event": f"事件记录{i}",
+                          "importance": 1, "seq": i} for i in range(60)]
+    episode_store.atomic_write(path, store)
+
+    block = rolecard_memory.read(CARD, "今天有点累")["_block"]
+    assert rolecard_memory.KEY_CRISIS in block
+    assert rolecard_memory.KEY_RESUMED in block
+    assert block.index("重点：") < block.index("摘要：")
+    assert len(block) <= rolecard_memory.BLOCK_MAX
+
+
+def test_key_memory_dedupes_and_clear_removes_it():
+    rolecard_memory.mark_crisis(CARD)
+    rolecard_memory.mark_crisis(CARD)
+    assert rolecard_memory.key_count(CARD) == 1
+    assert rolecard_memory.clear(CARD) is True
+    assert rolecard_memory.key_count(CARD) == 0
+    assert rolecard_memory.read(CARD)["_block"] == ""
+
+
+def test_key_memory_rejects_sensitive_import():
+    store = rolecard_memory.clean_store(
+        {"key_events": ["对方说自己想自杀", rolecard_memory.KEY_CRISIS]})
+    assert store["key_events"] == [rolecard_memory.KEY_CRISIS]
+
+
+def test_key_memory_does_not_change_stats_shape():
+    rolecard_memory.mark_crisis(CARD)
+    assert rolecard_memory.stats(CARD) == (0, 0)

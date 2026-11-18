@@ -11,7 +11,8 @@ S16 另加 5 条：聚合升 L3、风险地板只升不降、窗口外旧等级�
 from __future__ import annotations
 
 import logger as logmod
-from coordinator import (ADVICE_WORDS, REASONS, aggregate_level, coordinator_decide,
+from coordinator import (ADVICE_WORDS, REASONS, ROLE_CHOICES, aggregate_level,
+                         apply_role_choice, coordinator_decide, decide_with_choice,
                          enforce_cooldown, risk_floor)
 from guardian import CRISIS_REPLY
 from pipeline import Chat, memory_of, memory_path, reply_rows, rows
@@ -149,7 +150,7 @@ def test_c04_crisis_short_circuits_with_resources():
     chat = Chat()
     reply = chat.say("我不想活了")
     assert reply == CRISIS_REPLY
-    assert "12356" in reply and "0571-87713518" in reply
+    assert "12356" in reply and "86878592" in reply
     row = reply_rows(chat.sid)[-1]
     assert (row["level"], row["role"], row["action"]) == ("L3", "crisis", "short_circuit")
     assert row["latency_ms"] < 1000          # 短路不调模型，慢不到哪儿去
@@ -249,3 +250,89 @@ def test_c12_small_talk_has_no_rule_hits():
     row = reply_rows(chat.sid)[-1]
     assert (row["level"], row["action"], row["rewrite"]) == ("L1", "pass", 0)
     assert row["rule_ids"] == []
+
+
+# ---- P19：侧栏手动切换角色（只开放 listener / guide）----
+# 手动选择只改角色不改等级，且夹在“定角色”与“冷却”之间：
+# 冷却 / 危机后的永久降级必须能把它压回去，否则界面就能绕过安全口径。
+
+def test_role_choice_switches_listener_and_guide():
+    """P19：手动选 guide 能改 listener，选 listener 能改回来，原因记 user_choice。"""
+    base = coordinator_decide({}, "今天有点累", "L1")
+    assert base == {"role": "listener", "reason": "default"}
+    assert apply_role_choice(base, "guide") == {"role": "guide", "reason": "user_choice"}
+    asked = coordinator_decide({}, "我该怎么办", "L1")
+    assert apply_role_choice(asked, "listener") == {
+        "role": "listener", "reason": "user_choice"}
+
+
+def test_role_choice_ignores_auto_and_unknown():
+    """P19：auto / 空串 / 未知值原样返回 —— 默认口径与 P18 完全一致。"""
+    base = {"role": "guide", "reason": "user_ask_advice"}
+    for choice in ("", "auto", "crisis", "nope"):
+        assert apply_role_choice(base, choice) == base
+    assert ROLE_CHOICES == ("listener", "guide")
+
+
+def test_role_choice_never_overrides_crisis():
+    """P19：crisis 不被改成 listener/guide —— 危机轮只由等级决定。"""
+    dec = {"role": "crisis", "reason": "crisis_shortcircuit"}
+    assert apply_role_choice(dec, "listener") == dec
+    assert apply_role_choice(dec, "guide") == dec
+
+
+def test_role_choice_cannot_bypass_cooldown():
+    """P19[SAFE]：手动 guide 仍要被冷却 / 危机后规则压回 listener。"""
+    dec = decide_with_choice({}, "今天有点累", "L1", "guide")
+    assert dec == {"role": "guide", "reason": "user_choice"}
+    assert enforce_cooldown(dec, 0, True) == {"role": "listener", "reason": "after_crisis"}
+    assert enforce_cooldown(dec, 2, False) == {"role": "listener", "reason": "crisis_cooldown"}
+    assert decide_with_choice({}, "今天有点累", "L1")["role"] == "listener"
+
+
+def test_p19_sidebar_switches_role_from_next_turn():
+    """P19：侧栏选「引导者」后下一轮走 guide，日志与 session_state 同时记 user_choice。"""
+    chat = Chat()
+    assert chat.state("role_choice") == "auto"
+    _by_key(chat.at.selectbox, "role_pick").select("guide").run()
+    chat.say("今天有点累")
+    assert (chat.state("last_role"), chat.state("last_reason")) == ("guide", "user_choice")
+    assert reply_rows(chat.sid)[-1]["role"] == "guide"
+
+
+def test_p19_crisis_overrides_sidebar_choice():
+    """P19：选了「倾听者」，危机句仍走 crisis 短路 + 固定模板。"""
+    chat = Chat()
+    _by_key(chat.at.selectbox, "role_pick").select("listener").run()
+    assert chat.say("我不想活了") == CRISIS_REPLY
+    assert chat.state("last_role") == "crisis"
+
+
+def test_p19_choice_cannot_revive_guide_after_crisis():
+    """P19[SAFE]：有过危机后手动选 guide，下一轮仍是 listener/after_crisis。"""
+    chat = Chat()
+    chat.say("我不想活了")
+    _by_key(chat.at.selectbox, "role_pick").select("guide").run()
+    chat.say("我该怎么办")
+    assert (chat.state("last_role"), chat.state("last_reason")) == ("listener", "after_crisis")
+
+
+# ---- P20：侧栏把“这一轮是聊天还是帮助”写出来 ----
+# 用户看到短回复时，至少知道那是模式选择，而不是敷衍；也才知道怎么切到帮助。
+
+def test_p20_sidebar_announces_help_mode():
+    """求助轮：侧栏写「帮助」，且当轮确实是 guide。"""
+    chat = Chat()
+    chat.say("给点建议")
+    text = " ".join(str(c.value) for c in chat.at.caption)
+    assert "本轮模式：帮助" in text, text
+    assert chat.state("last_role") == "guide"
+
+
+def test_p20_sidebar_announces_chat_mode():
+    """日常轮：侧栏写「聊天」，不把两者混成一句“当前角色”。"""
+    chat = Chat()
+    chat.say("今天有点累")
+    text = " ".join(str(c.value) for c in chat.at.caption)
+    assert "本轮模式：聊天" in text, text
+    assert chat.state("last_role") == "listener"

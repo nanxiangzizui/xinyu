@@ -28,12 +28,18 @@ FALLBACK_LINE = "我这边刚刚卡了一下，但我在。你可以再说一句
 class Chat:
     """一次会话：一个 AppTest 实例 + 一个 URL 会话 id（?u=）。"""
 
-    def __init__(self, sid: str | None = None):
+    def __init__(self, sid: str | None = None, enter: bool = True):
         self.at = AppTest.from_file(APP, default_timeout=30)
         if sid:
             self.at.query_params["u"] = sid
         self.at.run()
         assert not list(self.at.exception), f"首屏异常：{list(self.at.exception)}"
+        # P17 首屏是列表：默认替调用方点“与心屿聊聊天”，旧用例仍从聊天页开始。
+        # 想看首页本身时传 enter=False，不要在这里断言 chat_input。
+        if enter and any(b.key == "home_chat" for b in self.at.button):
+            [b for b in self.at.button if b.key == "home_chat"][0].click().run()
+            assert not list(self.at.exception), f"进入聊天异常：{list(self.at.exception)}"
+            assert self.at.session_state["mode"] == "companion"
 
     @property
     def sid(self) -> str:
@@ -87,11 +93,15 @@ def memory_path(sid: str) -> pathlib.Path:
     return pathlib.Path(memory.DATA_DIR) / f"{sid}.json"
 
 
+def _read(name: str) -> str:
+    return pathlib.Path(ROOT / name).read_text(encoding="utf-8")
+
+
 def app_source() -> str:
-    return pathlib.Path(APP).read_text(encoding="utf-8")
+    """A 页已抽到 companion_ui，源码级断言要一起看。"""
+    return _read("app.py") + _read("companion_ui.py")
 
 
 def pipeline_source() -> str:
-    """兜底句在 orchestrator 里，渲染在 app 里：源码级断言要看两份。"""
-    return (pathlib.Path(APP).read_text(encoding="utf-8")
-            + pathlib.Path(ROOT / "orchestrator.py").read_text(encoding="utf-8"))
+    """兜底句在 orchestrator 里，渲染在 companion_ui 里：三份一起看。"""
+    return app_source() + _read("orchestrator.py")

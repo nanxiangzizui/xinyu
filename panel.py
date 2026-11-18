@@ -11,6 +11,7 @@ from datetime import datetime
 import streamlit as st
 
 from memory import read_memory, scrub, write_memory
+from style import TONE_LABELS
 
 # 给人看的标签：L1/L2/L3 与枚举码不出现在界面上（演示时不刺激用户，也不外泄规则）。
 LEVEL_LABELS = {"L1": "平稳", "L2": "留意", "L3": "危机"}
@@ -19,8 +20,8 @@ REASON_LABELS = {"default": "自然延续", "user_ask_advice": "你明确问了�
                  "crisis_shortcircuit": "需要优先保证安全",
                  "crisis_cooldown": "危机后的缓冲期",
                  "after_crisis": "本会话出现过危机",
-                 "sustained_negative": "持续低落"}
-TONE_LABELS = {"neutral": "自然", "gentle": "温柔", "light": "轻松", "direct": "直接"}
+                 "sustained_negative": "持续低落",
+                 "user_choice": "你自己选的"}
 
 # 8 个白名单字段的中文名；last_updated 对用户无意义，不展示（S18 §5.1）。
 LABELS = {

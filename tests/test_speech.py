@@ -1,6 +1,7 @@
 """test_speech.py — 活人感层：只许改说法，不许把已砍掉的 8 条带回来。"""
 from __future__ import annotations
 
+import agent
 import style
 from agent import build_system_prompt
 from roles import LIVE_EXAMPLES, OPENING_LINES, PERSONAS
@@ -83,10 +84,82 @@ def test_speech_block_is_persona_scoped():
 
 
 def test_prompt_budget_holds_with_live_voice():
-    """9. 加了活人感区后，最坏情况仍 ≤1400 字（含记忆、情景与 lore）。"""
+    """9. 加了活人感区后，最坏情况仍 ≤1500 字（含记忆、情景与 lore）。"""
     memory = {"preferred_tone": "温和", "emotion_tags": ["学业", "失眠"],
               "unresolved_issues": ["期末"], "rolling_summary": "在聊考试压力" * 5,
               "_episode_text": "对方以前提过：" + "下个月要搬家，" * 10 + "（当时焦虑）"}
     for pid in PERSONAS:
         prompt = build_system_prompt(pid, memory, ["校心理中心工作日可预约"])
-        assert len(prompt) <= 1400, (pid, len(prompt))
+        assert len(prompt) <= 1500, (pid, len(prompt))
+
+
+def test_listener_block_only_for_listener():
+    """10. m00002：倾听者默认陈述句；引导者求助时仍可问清一件事。"""
+    listener = build_system_prompt("sister_heart", {"_role": "listener"}, [])
+    guide = build_system_prompt("sister_heart", {"_role": "guide"}, [])
+    assert style.LISTENER_HEAD in listener
+    assert "非必要不反问" in listener
+    assert style.LISTENER_HEAD not in guide
+    assert "非必要不反问" not in guide
+
+
+def test_listener_repeat_hint_after_question_ending():
+    """11. 只有上一轮以问号收尾才加提示；只看最后一条 assistant。"""
+    assert style.listener_hint([]) == ""
+    assert style.listener_hint([{"role": "user", "content": "你好？"}]) == ""
+    assert style.listener_hint([{"role": "assistant", "content": "我在。"}]) == ""
+    assert style.listener_hint(
+        [{"role": "assistant", "content": "今天怎么样？"}]) == style.LISTENER_REPEAT
+    history = [{"role": "assistant", "content": "今天怎么样？"},
+               {"role": "user", "content": "还行"},
+               {"role": "assistant", "content": "那就好。"}]
+    assert style.listener_hint(history) == ""
+
+
+def test_listener_prompt_budget_still_holds():
+    """12. listener 段 + 重复提示后，最坏仍 ≤1700 字（远离上下文上限）。"""
+    memory = {"preferred_tone": "温和", "emotion_tags": ["学业", "失眠"],
+              "unresolved_issues": ["期末"], "rolling_summary": "在聊考试压力" * 5,
+              "_episode_text": "对方以前提过：" + "下个月要搬家，" * 10 + "（当时焦虑）",
+              "_role": "listener", "_listener_hint": style.LISTENER_REPEAT}
+    for pid in PERSONAS:
+        prompt = build_system_prompt(pid, memory, ["校心理中心工作日可预约"])
+        assert len(prompt) <= 1700, (pid, len(prompt))
+
+
+# ── P20：引导者的帮助模式 ──
+
+def test_help_block_only_for_guide_and_after_the_last_reminder():
+    """帮助段只给 guide，且排在 [最后提醒] 之后——
+    人设的 post_history 常写“不要急着给办法”，位置不对就压不住。"""
+    guide = build_system_prompt("sister_heart", {"_role": "guide"}, [])
+    listener = build_system_prompt("sister_heart", {"_role": "listener"}, [])
+    assert style.GUIDE_HEAD in guide
+    assert style.GUIDE_HEAD not in listener
+    assert guide.index(style.GUIDE_HEAD) > guide.index("[最后提醒]")
+    assert "最多 8 句" in guide and "3 句以内" in guide
+
+
+def test_help_prompt_budget_still_holds():
+    """帮助段比闲聊多约 200 字：最坏（记忆 + 情景 + lore + 联网句）≤1900。"""
+    memory = {"preferred_tone": "温和", "emotion_tags": ["学业", "失眠"],
+              "unresolved_issues": ["期末"], "rolling_summary": "在聊考试压力" * 5,
+              "_episode_text": "对方以前提过：" + "下个月要搬家，" * 10 + "（当时焦虑）",
+              "_role": "guide"}
+    for pid in PERSONAS:
+        prompt = build_system_prompt(pid, memory, ["校心理中心工作日可预约"])
+        assert len(prompt) <= 1900, (pid, len(prompt))
+
+
+def test_web_line_follows_the_switch(monkeypatch):
+    """ALLOW_WEB=0 默认不写“先查一次”；开关开了但没 key 也不写（否则模型假装查过）。"""
+    for key in ("ALLOW_WEB", "BOCHA_API_KEY", "TAVILY_API_KEY"):
+        monkeypatch.delenv(key, raising=False)
+    assert agent.web_ready() is False
+    assert style.GUIDE_WEB not in build_system_prompt("sister_heart", {"_role": "guide"}, [])
+
+    monkeypatch.setenv("ALLOW_WEB", "1")
+    assert agent.web_ready() is False
+    monkeypatch.setenv("TAVILY_API_KEY", "k")
+    assert agent.web_ready() is True
+    assert style.GUIDE_WEB in build_system_prompt("sister_heart", {"_role": "guide"}, [])

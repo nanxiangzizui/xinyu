@@ -1,0 +1,18 @@
+# P16 真实 key listener 探针
+mock=0 key_present=True
+
+[1] user: 分析一下结果
+role=listener level=L1 len=33 ends_question=False
+assistant: 三项里随性最高，8分。说明你大概更愿意按自己的节奏来，不太爱被框着
+
+trace: pre_check:ok, aggregate:ok, coordinator:ok, cooldown:ok, lore:ok, prompt:ok, generate:ok, post_check:ok, memory_write:ok
+
+[2] user: 你觉得我遇到困难会怎么做
+role=listener level=L1 len=30 ends_question=True
+assistant: 这个我没法从测试里推出来。你遇到难处时，一般会先自己扛着吗？
+
+[3] user: 刚刚我们聊了什么
+role=listener level=L1 len=25 ends_question=False
+assistant: 刚聊了你那个测试，随性8分，还有你遇到难处会怎么办
+
+temp_data_dir=D:\deepseek harness\xinyu-agent\p16real-47jfoqb3

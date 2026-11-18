@@ -1,0 +1,20 @@
+label    : 当前角色（可切换）
+options  : ['自动判断', '倾听者', '引导者']
+current  : auto / index 0
+caption  : ['这一轮：倾听者 · 切换原因：自然延续']
+侧栏 metric 只剩: ['当前风险等级']
+
+--- 选「引导者」后说一句普通的话 ---
+caption  : ['这一轮：倾听者 · 切换原因：自然延续', '手动选择从下一轮开始；危机与危机后的缓冲期由系统接管。']
+last_role=guide last_reason=user_choice
+
+--- 选「倾听者」后说危机句 ---
+last_role=crisis last_reason=crisis_shortcircuit
+
+--- 危机后改选「引导者」，再说一句求助 ---
+last_role=listener last_reason=after_crisis
+caption  : ['这一轮：倾听者 · 切换原因：本会话出现过危机', '手动选择从下一轮开始；危机与危机后的缓冲期由系统接管。']
+
+--- 选回「自动判断」 ---
+last_role=listener last_reason=default
+caption  : ['这一轮：倾听者 · 切换原因：自然延续']

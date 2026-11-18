@@ -1,0 +1,91 @@
+P12 B 模式 L3 暂停后恢复 + 重点记忆 · 证据（2026-11-17）
+
+== 需求 ==
+用户 m00002 原话：
+「这是一次极端测试，但我有个建议：在校心理中心电话下面，再多说一句：如果想继续让我帮你开导，请先调整好自己的状态，然后下面加一个“我好些了，继续吧”的按键，用户点击后可以继承记忆而后继续聊天，不过这个记忆要计入重点记忆区（不可忘记）」
+
+== 实现行为 ==
+1. B 模式命中 L3 后，仍然先出危机模板 + 三张资源卡（12356 / 110、120 / 校心理中心 0571-87713518），然后暂停输入。
+2. 资源卡（校心理中心是最后一张）下面显示：
+   「如果想继续聊，请先调整好自己的状态，并确认现在是安全的。」
+   下面一行小字：「如果还在危险里，请先联系上面的人。」
+   再下面是「我好些了，继续吧」按钮；原有「重新开始」「回到陪伴模式」仍在。
+3. 点击「我好些了，继续吧」只做三件事：
+   - 写一条固定重点记忆（KEY_RESUMED）；
+   - 把 rc_ended 设回 False；
+   - st.rerun()（保留同一 rc_sid / rc_messages / rc_state）。
+   不自动发用户消息，不换会话，不重置风险态。
+4. L3 收尾时写一条固定重点记忆（KEY_CRISIS）。两条都只写转述，不写用户原话、诊断或病名。
+5. 重点记忆：
+   - 最多 4 条（KEY_MAX=4），单条最多 80 字（KEY_ITEM_MAX=80）；
+   - 不参与 60 条情景淘汰，不吃 cue，始终拼在摘要前；
+   - block() 仍按 BLOCK_MAX=500 截断，但重点在头部，不会被摘要挤掉；
+   - 含敏感词的导入会被 has_sensitive 拒绝；重复不追加；
+   - 侧栏显示「记得 N 段 · 重点 K 条 · 摘要 M 字」；
+   - 「清空这张卡的记忆」会把重点记忆一起删掉。
+6. 免责声明第 5 条从「对话会立即停止」改为：
+   「提到自伤、自杀或处于危险中时，对话会先暂停，并给出求助资源；确认安全后可以自己选择继续。」（rolecard.py，[SAFE] P12）
+
+== 代码位置 ==
+- rolecard_memory.py:30-33   KEY_MAX / KEY_ITEM_MAX / KEY_CRISIS / KEY_RESUMED
+- rolecard_memory.py:77-86   _clean_keys()：clean_text + has_sensitive + 去重 + 只留最后 4 条
+- rolecard_memory.py:89-104  clean_store()：旧文件没有 key_events 也能读
+- rolecard_memory.py:137-164 block()：重点放在摘要前
+- rolecard_memory.py:307-309 key_count()：与 stats() 的二元组分离
+- rolecard_memory.py:312-330 _add_key() / mark_crisis() / mark_resumed()
+- rolecard_ui.py:146-160     _finish_turn()：L3 写 KEY_CRISIS 并 rc_ended=True
+- rolecard_ui.py:201-222     render_ended()：资源卡、提示、rc_resume、重启/返回
+- rolecard_ui.py:225-236     render_sidebar()：重点条数
+- rolecard.py:43             免责第 5 条
+
+== 自动验证 ==
+pytest -q：
+........................................................................ [ 19%]
+........................................................................ [ 38%]
+........................................................................ [ 58%]
+........................................................................ [ 77%]
+........................................................................ [ 97%]
+...........                                                              [100%]
+371 passed in 15.34s
+
+contract_check.py：
+11/11 signatures OK
+5/5 constants OK
+20/20 rules OK
+
+metrics.py：
+recall       10/10 = 100.0%
+false_block  0/20 = 0.0%
+role         12/12 = 100.0%
+stable       10/10 = 100.0%
+
+关键用例：
+- tests/test_rolecard_app.py:171 test_l3_offers_resume_and_keeps_key_memory
+  L3 后 rc_resume 存在、提示含「请先调整好自己的状态」、key_count=1；点击后 rc_ended=False、rc_sid 不变、输入框回来、key_count=2、block 含 KEY_CRISIS 与 KEY_RESUMED、ever_crisis=True；再说「今天有点累」后 turn=2、last_level=L2。
+- tests/test_rolecard_memory.py:117 test_key_memory_always_visible_and_survives_cap
+  重点记忆不吃 cue、不被 60 条情景淘汰、排在「摘要：」之前，block 仍 <= 500。
+- tests/test_rolecard_memory.py:137 test_key_memory_dedupes_and_clear_removes_it
+  重复 mark 只留 1 条；clear 后 key_count=0、block 为空。
+- tests/test_rolecard_memory.py:146 test_key_memory_rejects_sensitive_import
+  含「自杀」的 key_events 导入被拒，只保留固定转述。
+- tests/test_rolecard_memory.py:152 test_key_memory_does_not_change_stats_shape
+  stats() 仍是 (0, 0) 二元组。
+- tests/test_rolecard.py:293 test_disclaimer_explains_pause_and_resume
+  免责声明含「先暂停」「确认安全」。
+
+== 安全口径 ==
+- 只升不降：恢复按钮不改 rc_state，不重置 ever_crisis / levels；下一轮仍走 guardian，窗口地板至少 L2，再说 L3 会再次暂停。
+- 不诊断：重点记忆是固定转述，不含「抑郁 / 焦虑 / 确诊 / 吃药 / 医院」等；导入侧也有敏感词闸门。
+- 不存原话：应用只把 mark_crisis / mark_resumed 的固定常量写进 key_events，不把用户输入写进去；导入侧再用 has_sensitive 拦敏感词。
+- 不承诺保密：危机模板与资源卡保持不变。
+- L3 仍是零工具、零 LLM 的本地短路。
+
+== 行数 ==
+rolecard.py 349
+rolecard_ui.py 260
+rolecard_memory.py 340
+（均 <= 350，未新增 .py 文件）
+
+== 未做 ==
+- 未补 UI 截图、视频、docx、PPT 回填。
+- 未提交代码（工作区仍在 agent-v2，P11 的未提交改动也在）。

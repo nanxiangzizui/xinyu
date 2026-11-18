@@ -1,0 +1,90 @@
+P16 倾听者非必要不反问 · 证据
+日期：2026-11-17
+分支/工作区：agent-v2 / D:\deepseek harness\xinyu-agent
+触发：用户 m00002 贴 A 模式趣味测试对话截图，指出「左侧当前角色写的是‘倾听者’，这么多反问不符合人设」，要求「倾听者下非必要不反问」。
+
+一、截图里的问题
+连续 4 条助手消息分别以问句收尾：
+1. 「想与我探讨一下测试结果吗？」（这是 quiz 报告由代码拼的 CTA，不是模型生成）
+2. 「这结果你觉得像你吗？」
+3. 「真遇事，你会开口吗？」
+4. 「说到这儿，你心里在想什么？」
+其中 2–4 是模型生成。原 prompt 里 `SPEECH_RULES` 第 9 条「每轮只做一件事：接住情绪，或问一个具体问题，或给一句话」、第 10 条「想主动开口时问具体的事……」和 `warm_senpai` 的 tone hint 都在鼓励问句；A 模式没有按角色收窄。
+
+二、改了什么
+1. `style.py`
+   - 新增 `LISTENER_HEAD` / `LISTENER_RULES` / `LISTENER_EXAMPLE` / `LISTENER_REPEAT`。
+   - `listener_block(repeat_hint="")`：返回「[这一轮：倾听者]」+ 三条规则 + 一条示例；有 repeat_hint 时追加「上一轮你已经用问句收尾；这一轮用陈述句，把话接住就停。」
+   - `listener_hint(history)`：只看最后一条 assistant，`rstrip().endswith(("？","?"))` 才返回 repeat 提示。
+   - `trim_listener_question(reply)`：prompt 之外的代码兜底。末尾是问句、且前面还有陈述时，删掉末尾问句；整条只有一句问句时保留。L1 的 listener 才启用，L2 保留「你现在安全吗」这类必要确认。
+   - `polish(..., role="")`：L1 且 `role == "listener"` 时调用 `trim_listener_question()`；L3 仍原样返回。
+   - `TONE_HINTS["warm_senpai"]` 去掉「再问一个具体的问题」，改成「先说一句你注意到的细节」。
+2. `agent.py`
+   - `_style_block(..., role="", listener_hint="")`：tone hint 之后，仅 `role == "listener"` 时追加 `style.listener_block()`。
+   - `build_system_prompt` 从 memory 读 `_role` / `_listener_hint`，签名仍是 3 参，11 条契约未动。
+3. `orchestrator.py`
+   - coordinator / cooldown 之后、prompt 之前，A 模式写 `facts["_role"] = dec["role"]` 与 `facts["_listener_hint"] = style.listener_hint(history)`；B 模式不写。
+   - `style.polish(reply, persona_id, eff_level, dec["role"])`：把当轮角色传给口吻层，listener 的收尾问句兜底才生效；guide / crisis 不受影响。
+4. `quiz_store.py`
+   - `ANALYZE_LINE` 从「先给内容再提问」软化为「先给内容；最后想邀请对方说时再问一句，不必为了收尾硬加问句；不要整条只有一句反问」。
+5. 测试
+   - `tests/test_speech.py` +3：listener 段只在 listener 出现、repeat 只在问号收尾后出现、listener prompt ≤1600。
+   - `tests/test_orchestrator.py` +5：A 模式 listener 有段、guide 无段、上一条问号触发 repeat；再加 listener 回复的收尾问句被削、guide 回复的问句保留。
+   - `tests/test_style.py` +5：listener 有陈述垫底时削问句、整条只有一句问句时保留、guide 不动、连续多个收尾问句只留陈述、L2 listener 保留安全确认。
+   - `tests/test_quiz.py` 补「先给内容 / 不必为了收尾硬加问句」断言。
+
+三、离线探针（不调真模型）
+脚本：`docs/evidence/_p16_listener_probe.py`
+做法：临时 DATA_DIR/LOG_DIR，`orchestrator.AGENT_LOOP=False`，monkeypatch `agent.call_llm` 只捕获 system prompt，返回固定「我在。」。
+命令：`.\.venv\Scripts\python.exe docs\evidence\_p16_listener_probe.py`
+输出（2026-11-17）：
+
+== 1. listener + 上一条以问号收尾 ==
+role: listener level: L1
+contains '[这一轮：倾听者]': True
+contains '非必要不反问': True
+contains '不要用问句收尾': True
+contains '上一轮你已经用问句收尾；这一轮用陈述句，把话接住就停。': True
+prompt chars: 1402
+--- prompt tail ---
+像姐姐：先接住情绪，再给一句具体的小建议，不用大道理。
+[这一轮：倾听者]
+你在听，不在采访：默认用陈述句接住——复述对方刚说的半句，或说一句你听到的，然后停。
+非必要不反问：只有对方明显没说完、或你确实要确认一件具体的事时才问；一轮最多一个问句，也不要用问句收尾。
+对方问你问题时，把答案说完就停，不要用「你呢 / 你会吗」把问题推回去。前面「每轮只做一件事」和「想主动开口」里的问句，这一轮按本段收窄。
+示例：用户：今天不太想说话。你：那就先不说，我在这儿待着。
+上一轮你已经用问句收尾；这一轮用陈述句，把话接住就停。
+
+[最后提醒]
+先确认对方此刻的情绪，再开口；不要急着给办法。
+
+== 2. guide 不应出现 listener 段 ==
+role: guide
+contains listener head: False
+prompt chars: 1168
+
+== 3. listener 但上一条是陈述句 ==
+role: listener
+contains listener head: True
+contains repeat hint: False
+prompt chars: 1374
+
+四、全量验证
+- `pytest -q`：430 passed in 29.98s（417 旧 + 13 新）。
+- `contract_check.py`：11/11 signatures OK；5/5 constants OK；20/20 rules OK。
+- `metrics.py`：recall 10/10 = 100.0%；false_block 0/20 = 0.0%；role 12/12 = 100.0%；stable 10/10 = 100.0%。
+- prompt 长度（长记忆 fixture）：base 五人 1344/1342/1306/1340/1250；listener 段 1550/1548/1512/1546/1456；再加 repeat 1578/1576/1540/1574/1484。`listener_block()` 205 字（带 repeat 233 字），listener 预算测试定 1600。
+- 行数：style.py 228 / agent.py 286 / orchestrator.py 250 / quiz_store.py 171。
+
+五、真实 key 复测与边界
+- 本机 `.env` 确实有 `LLM_API_KEY`（长度 35，不打印值），`MOCK_LLM=0`，`LLM_BASE_URL=https://api.deepseek.com`，`LLM_MODEL=deepseek-chat`。此前用 PowerShell `Select-String` 读成空白，是误判；已撤回「没有 key、无法复测」的结论。
+- before（只加 prompt 规则）：`docs/evidence/P16-real-listener-before-2026-11-17.txt`
+  三轮均 role=listener / L1；第 2 轮「这个我没法从测试里推出来。你遇到难处时，一般会先自己扛着吗？」ends_question=True；第 1、3 轮 False。说明只靠 prompt 仍会把「确认一下」当必要。
+- after（prompt + 代码兜底）：`docs/evidence/P16-real-listener-2026-11-17.txt`
+  同一路径、同一三轮输入，三轮 ends_question 全为 False：
+  1. 「随性8分，挺高的。不太爱被规矩框着，按自己节奏来更舒服。自守1分，不太会勉强自己迎合外面」（44 字）
+  2. 「大概会先按自己的方式来。不太爱求助，也不太照别人的路子走」（28 字）
+  3. 「刚聊了你的测试结果，随性8分那份。还说到你遇到困难，大概会先按自己的方式来」（37 字）
+- 真实 key 有随机性，after 的具体措辞与 before 不同；能确认的是同一路径、同一三轮输入下，after 不再以问号收尾。`trim_listener_question` 的确定性由 `tests/test_style.py` 与 `tests/test_orchestrator.py` 锁定。
+- L2 边界：trim 只在 L1 listener 生效；L2 的「你现在安全吗？」保留，避免体验层削掉安全确认。
+- quiz 报告末尾的「想与我探讨一下测试结果吗？」是 P13 的代码 CTA，不属于模型生成；本次未改。若用户希望报告也不带问句，需要单独改 `quiz_data.CTA` 并同步测试与 P13 证据。

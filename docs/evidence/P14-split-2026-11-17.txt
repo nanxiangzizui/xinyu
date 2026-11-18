@@ -1,0 +1,98 @@
+P14 角色卡多段式回复 · 证据
+日期：2026-11-17
+范围：B 模式（角色卡聊天）先接入；A 模式暂未改。
+
+一、需求与旧设计
+- 用户要求：先看文件里有没有 AI 多段式回答的旧设计，有就实现看看效果。
+- 找到的旧设计：docs/v2-steps/P7-real-user-regression.md §5 P7d「回复侧分条 + 打字节奏」。
+  当时结论是「默认不做」，只留开关 REPLY_SPLIT = 0。
+- 本次决定：先接 B 模式，默认开启；REPLY_SPLIT=0 可一键关回单气泡。
+
+二、实现位置
+- style.py
+  - SPLIT_MIN_CHARS = 50
+  - SPLIT_MIN_PART = 10
+  - SPLIT_MAX_PARTS = 3
+  - FENCE = chr(96) * 3
+  - _SENTENCE_END = re.compile(r"[。！？!?…]+[”’」』）)\]]*")
+  - _sentences(text) -> list[str]
+  - _pack(sentences, max_parts) -> list[str]
+  - split_reply(text, level="L1", template_fallback=False, degraded=False) -> list[str]
+- chat_ui.py
+  - REPLY_PAUSE_S = 0.35
+  - split_enabled() -> bool
+  - reply_parts(result: dict) -> list[str]
+  - render_reply(parts, role="assistant", animate=False, extra=None) -> None
+  - render_history() 按 msg["parts"] 复原多个气泡；sources 与 gap 备注只画在最后一个气泡。
+- rolecard_ui.py
+  - render_chat() 先在 spinner 内拿到 result，再落库 content + parts，最后分段渲染；
+    资源卡与 gap 备注通过 extra() 画在最后一个气泡。
+- orchestrator.py
+  - _crisis_result() / _log_and_result() / safe_run() 补 template_fallback 标记，
+    供 UI 判断「这是不是模板兜底句」。
+
+三、行为约束
+- 不拆：L3 危机回复、guardian 模板兜底、故障兜底、含换行、含代码块、少于 50 字、少于 2 句。
+- 拆：普通长回复（>=50 字、>=2 句、无换行/代码块），按句末标点切成 2–3 个气泡，气泡间停 0.35 秒。
+- 所有分段 join 后必须与原文完全一致，不改字、不丢句。
+- 先落库再渲染：历史消息 content 始终是完整原文，刷新/重绘时用 parts 复原气泡。
+
+四、样例（style.split_reply 实测，见 _p14_demo_2026-11-17.json）
+输入：
+听起来你今天真的被这件事耗得很厉害。先不用急着把它想明白，也不用马上振作起来。我在这儿，你可以慢慢说，想到哪儿说到哪儿。
+
+输出 2 段：
+[1] 听起来你今天真的被这件事耗得很厉害。先不用急着把它想明白，也不用马上振作起来。
+[2] 我在这儿，你可以慢慢说，想到哪儿说到哪儿。
+join == 原文：True
+
+不拆样例：
+- "我在。你慢慢说，不着急。"（少于 50 字）→ 1 段
+- "我很在意你现在的安全。请先联系身边可信任的人，或拨打 120 / 110 / 12356。"（L3）→ 1 段
+- "我这边刚刚卡了一下，但我在。你可以再说一句吗？"（模板兜底）→ 1 段
+- 多行文本、含 ``` 代码块的文本 → 1 段
+
+五、测试
+命令：.\.venv\Scripts\python.exe -m pytest -q
+结果：413 passed（P14 前 405 + 新增 8），25.52s。
+
+新增/修改：
+- tests/test_style.py +7
+  1) 安全/兜底整条不拆
+  2) 短回复不拆
+  3) 两句拆两段且 join == 原文
+  4) 6 句最多 3 段且 join == 原文
+  5) 多行与代码块整条
+  6) 短尾「嗯。」并回前段
+  7) REPLY_SPLIT=0/1 开关
+- tests/test_rolecard_app.py +1
+  test_rolecard_long_reply_is_split_into_bubbles
+  用 monkeypatch 把 agent.MOCK_LINES 换成 3 句长回复，验证：
+  - 落库 content 是完整原文
+  - parts 为 2–3 段且 join == 原文
+  - 当轮 markdown 含每一段
+  - turn 仍为 1
+  - 再发一句后历史重绘仍含各段
+
+六、契约与四指标
+- contract_check.py：11/11 signatures OK，5/5 constants OK，20/20 rules OK
+- metrics.py：召回 10/10，误拦 0/20，角色 12/12，连续 10 轮 10/10
+
+七、行数
+- style.py 169 / <=180
+- chat_ui.py 113 / <=120
+- rolecard_ui.py 263 / <=350
+- orchestrator.py 250 / <=250
+
+八、实现中踩的坑
+- 短尾并回时写成了 parts[-2] += parts.pop()：
+  pop() 先缩短列表，负下标随后按新长度重算，结果覆盖前段并丢掉第一段。
+- 修复：先 tail = parts.pop()，再 parts[-1] += tail；首段同理先 pop(0) 再拼。
+
+九、限制与开关
+- 只接 B 模式；A 模式 app.py 未改。
+- 本地 .env 没有 LLM_API_KEY，只能用 MOCK + AppTest 验证分段路径；
+  真实 key 的长回复分段效果尚未实跑。
+- MOCK_LINES 三条都很短，正常 MOCK 聊天不会触发分段；
+  tests/test_rolecard_app.py 用 monkeypatch 长回复覆盖了这条路径。
+- 关闭方式：环境变量 REPLY_SPLIT=0。

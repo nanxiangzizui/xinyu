@@ -144,4 +144,5 @@ $env:MOCK_LLM="1"; .\.venv\Scripts\streamlit.exe run app.py # 手动两轮：一
 - 2026-11-16：新增 **P9 双模式（陪伴模式 + 角色卡模式）计划书**；只写计划，代码零改动，219 不变。四项已拍板决策见 P9 文档 §2.1；A 内语气模仿默认不做（P9e）。
 - 2026-11-17：按用户追加修正更新 P9：**B 内一切行为从角色认知出发**；被问本人先按角色回答、追问才答“是”；被问真人用角色世界观（“来自……，与你不是同一个时空”），不说“这是角色扮演”；被问 AI 追问答“不是”，卡明确 AI 时例外；已知虚构角色在**建卡阶段**检索补全（P9f），B 对话运行时仍零工具/零联网；新增 `rolecard_enrich.py`，卡 schema 加 `origin/work`。
 - 2026-11-17：P9 + P9g **落地**：272 passed；建卡检索扩到 voice/story/world/relationship（8 条 ×60 字），新增角色认知 `lore`（≤360），B prompt 上限 1600，`web.SNIPPET_MAX=400`；`rolecard.py` 233 / `rolecard_enrich.py` 185 / `rolecard_ui.py` 307 / `chat_ui.py` 46。
+- 2026-11-18：**P17 首屏放松入口落地**（[`P17-home-relax-hub.md`](P17-home-relax-hub.md)）：默认列表首页（`HOME_HUB=0` 回退）+ 聊天 / 角色卡 / 六个本地放松工具 / 三个文字小游戏 / 独立趣味测试页；D17-1~5 与 D17-9/10/11 已拍板；环境音改为 Wikimedia Commons 公开音频（浏览器点击后加载，页面署名）；新增 `home.py` / `companion_ui.py` / `relax_data.py` / `relax_ui.py` / `relax_media.py` / `word_games.py`，`app.py` 只路由；**467 passed**，契约 11/11 + 5/5 + 20/20。
 - 各节点出口条数：137 → 150 → 159（P3a）→ 166 → 175 → 176。

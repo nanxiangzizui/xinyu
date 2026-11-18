@@ -1,14 +1,12 @@
-"""app.py — Streamlit 页面：免责声明 / 聊天区 / 侧栏 / 记忆面板。
+"""app.py — P17 路由：首屏列表 / 陪伴 / 角色卡 / 测试 / 放松页。
 
-管线（判危 → 定角色 → 找事实 → 拼 prompt → 生成 → 审 → 记）在 P1 搬进了
-orchestrator.py：页面只调 safe_run()，不再持有任何业务顺序或等级判断。
+页面只做路由与配置；聊天管线在 orchestrator，A 页在 companion_ui，
+B 页在 rolecard_ui，放松页在 relax_ui。这里不判级、不拼 prompt。
 """
 from __future__ import annotations
 
 import logging
 import os
-import re
-import uuid
 
 import streamlit as st
 from dotenv import load_dotenv
@@ -21,7 +19,7 @@ _SECRET_KEYS = ("LLM_API_KEY", "LLM_BASE_URL", "LLM_MODEL", "MOCK_LLM",
                 "DATA_DIR", "LOG_DIR", "ALLOW_WEB", "WEB_PROVIDER",
                 "BOCHA_API_KEY", "BOCHA_ENDPOINT",
                 "TAVILY_API_KEY", "TAVILY_ENDPOINT",
-                "WEB_API_KEY", "WEB_ENDPOINT", "ROLECARD")
+                "WEB_API_KEY", "WEB_ENDPOINT", "ROLECARD", "HOME_HUB")
 
 
 def _bridge_secrets() -> None:
@@ -42,155 +40,78 @@ def _bridge_secrets() -> None:
 
 _bridge_secrets()
 
-from logger import session_hash
-from memory import clear_memory
-from orchestrator import safe_run
-from panel import (LEVEL_LABELS, REASON_LABELS, ROLE_LABELS,
-                   render_panel, render_trace)
-from resources import pick_resources
 from theme import inject_theme, theme_picker
-import chat_ui
-import episode_store
+from ui_common import (DEFAULT_PERSONA, DISCLAIMER, get_session_id,
+                       home_enabled, rolecard_enabled)
+import agent
+import byok
+import companion_ui
+import home
+import quiz_ui
+import relax_ui
 import rolecard_ui
 import web
 
 logger = logging.getLogger(__name__)
 
-DISCLAIMER = (
-    "这是一个情绪陪伴工具，不是心理咨询，也不能替代真人帮助。"
-    "如果你或身边的人有危险，请拨打 120 / 110 或 12356。"
-)
-NET_HINT = "网络不稳定：刚才那条是兜底回复"
-DEFAULT_PERSONA = "sister_heart"
 
-# 与 memory.py 的 ID_RE 同口径：会话 id 来自 URL，必须先校验再交给磁盘层。
-SID_RE = re.compile(r"^[a-zA-Z0-9_-]{1,32}$")
+def _sync_model() -> bool:
+    """把会话 Key 交给 agent，并决定这一轮是否走显式演示模式。
 
-
-def get_session_id() -> str:
-    """会话 id 只放 URL：session_state 刷新即空，放那里记忆就断了。"""
-    raw = st.query_params.get("u")
-    if isinstance(raw, list):
-        raw = raw[0] if raw else None
-    if isinstance(raw, str) and SID_RE.fullmatch(raw):
-        return raw
-    sid = uuid.uuid4().hex[:12]
-    st.query_params["u"] = sid
-    return sid
+    [SAFE] 公开实例没有 Key 时不再整页 st.stop：页面能开，回复由本地脚本生成。
+    危机路径本来就不依赖 LLM，断网、欠费、没 Key 都照样出模板与资源卡，
+    这正是"断网仍出危机卡"要演示的行为。
+    """
+    key = byok.current()
+    agent.set_session_key(key)
+    demo = (not key and not os.getenv("LLM_API_KEY")
+            and os.getenv("MOCK_LLM", "0").strip() != "1")
+    agent.set_demo_mode(demo)
+    return demo
 
 
 def _config_gate() -> None:
-    """配置错误当场报，不许伪装成"网络不稳定"。
-    缺 Key 时每一轮都会走到 safe_run，用户看到的却是一句"卡了一下"，排查会跑错方向。
-    """
-    if os.getenv("MOCK_LLM", "0").strip() == "1":
-        return
-    if not os.getenv("LLM_API_KEY"):
-        st.error("未配置 LLM_API_KEY：请在 .env 填入 Key，或设 MOCK_LLM=1 离线运行。")
-        st.stop()
+    """配置状态写在第一屏：有 Key 不打扰，没 Key 明确说这是演示。"""
+    if _sync_model():
+        st.info("演示模式：当前没有配置模型 Key，回复由本地脚本生成。"
+                "在侧栏「模型设置」填入你自己的 DeepSeek Key 即可开启真实对话。")
 
 
 def _rolecard_enabled() -> bool:
-    """D9-8：ROLECARD=0 时彻底隐藏 B 入口；默认开启。"""
-    return os.getenv("ROLECARD", "1").strip() != "0"
+    """兼容旧调用；开关定义在 ui_common。"""
+    return rolecard_enabled()
 
 
-def _mode_button() -> None:
-    """侧栏顶部的模式按钮：聊天里不识别切换，避免误触丢上下文。"""
+def _nav() -> None:
+    """侧栏导航：首页不显示返回；聊天与角色卡互切；测试/放松只回首页。"""
+    mode = st.session_state.get("mode", "home")
     with st.sidebar:
-        if st.session_state.get("mode") == "rolecard":
-            if st.button("返回陪伴模式", key="rc_to_companion"):
-                st.session_state["mode"] = "companion"
+        if mode != "home" and home_enabled():
+            if st.button("回首页", key="home_back"):
+                st.session_state["mode"] = "home"
                 st.rerun()
-        elif _rolecard_enabled():
+        if mode == "companion" and rolecard_enabled():
             if st.button("角色卡模式", key="rc_to_rolecard"):
                 st.session_state["mode"] = "rolecard"
                 rolecard_ui.ensure_state()
                 st.rerun()
+        elif mode == "rolecard":
+            if st.button("返回陪伴模式", key="rc_to_companion"):
+                st.session_state["mode"] = "companion"
+                st.rerun()
 
 
-def _clear(sid: str) -> None:
-    """真删记忆并换新会话：不换 id 的话，侧栏一读记忆文件就会被重建。"""
-    for clear_fn in (clear_memory, episode_store.clear):
-        try:
-            clear_fn(sid)
-        except OSError as exc:                      # 边界：删不掉也不许崩页面
-            logger.warning("clear_failed session=%s error=%s",
-                           sid[:6], type(exc).__name__)
-    st.session_state.messages = []
-    st.session_state["last_trace"] = []
-    st.session_state["degraded"] = False
-    st.session_state["turn"] = 0
-    # 清空对话 = 开新会话：冷却与“有过危机”标记必须一起归零，否则新对话永远回不到 guide。
-    st.session_state["cooldown"] = 0
-    st.session_state["ever_crisis"] = False
-    st.session_state["last_role"] = "listener"
-    st.session_state["last_level"] = "L1"
-    st.session_state["last_reason"] = "default"
-    st.session_state["levels"] = []
-    st.query_params["u"] = uuid.uuid4().hex[:12]
-    st.rerun()
-
-
-def _sidebar(sid: str) -> None:
-    with st.sidebar:
-        turn = st.session_state.get("turn", 0)
-        level = st.session_state.get("last_level", "L1")
-        role = st.session_state.get("last_role", "listener")
-        reason = st.session_state.get("last_reason", "default")
-        st.caption(f"会话 {session_hash(sid)[:6]} · 第 {turn} 轮")
-        st.metric("当前风险等级", LEVEL_LABELS.get(level, level))
-        st.metric("当前角色", ROLE_LABELS.get(role, role))
-        st.caption(f"切换原因：{REASON_LABELS.get(reason, reason)}")
-        if os.getenv("MOCK_LLM", "0").strip() == "1":
-            st.caption("离线演示模式（MOCK）")
-        if st.session_state.get("degraded"):
-            st.caption(NET_HINT)
-        render_panel(sid, _clear)
-        render_trace(st.session_state.get("last_trace"))
-
-
-def _companion() -> None:
-    """A 的聊天页：只读写 messages/persona_id 等 A 状态，不碰 rc_*。"""
-    sid = get_session_id()
-    st.session_state.setdefault("messages", [])
-    st.session_state.setdefault("persona_id", DEFAULT_PERSONA)
-    # 冷却与“有过危机”只活在本会话：刷新即重置，这是 S11 的既定口径，不是 bug。
-    for key, default in (("cooldown", 0), ("ever_crisis", False),
-                         ("last_role", "listener"), ("last_level", "L1"),
-                         ("last_reason", "default"), ("turn", 0),
-                         ("levels", [])):
-        st.session_state.setdefault(key, default)
-    st.session_state.setdefault("last_trace", [])
-
-    chat_ui.render_history(st.session_state.messages)
-
-    text = (st.chat_input("说说你现在想说的…") or "").strip()
-    if text:
-        history, merged, turn = chat_ui.accept(st.session_state.messages, text)
-        st.session_state["turn"] = turn
-        with st.chat_message("user"):
-            st.markdown(text)
-        with st.chat_message("assistant"):
-            with st.spinner("我在听…"):
-                result = safe_run(merged, sid, history,
-                                  st.session_state.persona_id, st.session_state)
-            # 先落库再渲染：渲染这一帧被打断时，回复还在，重绘不会凭空消失。
-            st.session_state.messages.append({
-                "role": "assistant", "content": result["reply"],
-                "sources": result.get("sources") or []})
-            st.markdown(result["reply"])
-            # [SAFE] S10 §8：L2/L3 当轮各出一次资源卡（L2 两张 / L3 三张），L1 为空不打扰。
-            # 卡只渲染在本轮，不写进 messages，刷新重绘时不会重复弹（S21 #4 补的口径）。
-            for card in pick_resources(result["level"], []):
-                st.info(f"{card['title']}：{card['detail']}")
-        st.session_state["last_trace"] = result.get("trace", [])
-        st.session_state["degraded"] = result["degraded"]
-        st.session_state["last_role"] = result["role"]
-        st.session_state["last_level"] = result["level"]
-        st.session_state["last_reason"] = result.get("reason", "default")
-
-    _sidebar(sid)
+def _current_mode() -> str:
+    """决定首屏：HOME_HUB=0 或 B 被关掉时回退，不让页面停在空路由。"""
+    mode = st.session_state.get("mode")
+    if not mode:
+        mode = "home" if home_enabled() else "companion"
+    if mode == "home" and not home_enabled():
+        mode = "companion"
+    if mode == "rolecard" and not rolecard_enabled():
+        mode = "home" if home_enabled() else "companion"
+    st.session_state["mode"] = mode
+    return mode
 
 
 def main() -> None:
@@ -200,14 +121,22 @@ def main() -> None:
     _config_gate()
     web.register_tools()   # 注册 ≠ 暴露：ALLOW_WEB=0 时模型看不到网络工具
 
-    # 主题注入必须早于聊天区渲染；选择器是侧栏第一项，模式按钮排在它后面。
+    # 主题注入必须早于聊天区渲染；选择器是侧栏第一项，导航按钮排在它后面。
     inject_theme(theme_picker())
-    st.session_state.setdefault("mode", "companion")
-    _mode_button()
-    if st.session_state.get("mode") == "rolecard" and _rolecard_enabled():
+    mode = _current_mode()
+    _nav()
+    byok.render()          # 侧栏「模型设置」：访客自带 Key 只影响本会话
+    sid = get_session_id()
+    if mode == "home":
+        home.render()
+    elif mode == "rolecard":
         rolecard_ui.render()
+    elif mode == "quiz":
+        quiz_ui.render_page(sid)
+    elif mode == "relax":
+        relax_ui.render()
     else:
-        _companion()
+        companion_ui.render(sid)
 
 
 if __name__ == "__main__":

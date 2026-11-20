@@ -14,6 +14,7 @@ from pathlib import Path
 
 import streamlit as st
 
+import examples
 import rolecard
 import rolecard_enrich
 
@@ -200,6 +201,11 @@ def _render_fields() -> None:
              format_func=lambda v: rolecard.STAGE_LABELS.get(v, v))
 
 
+def _fill_example(slot: int, pair: tuple[str, str]) -> None:
+    """回调里改控件状态；直接赋值会撞「控件已实例化」。"""
+    st.session_state[f"rc_ex{slot}_user"], st.session_state[f"rc_ex{slot}_role"] = pair
+
+
 def _render_examples() -> None:
     """两组示例 + 禁忌 + 可手填的角色认知。"""
     st.markdown("**两组示例对话**（让角色知道怎么开口）")
@@ -211,6 +217,16 @@ def _render_examples() -> None:
         with cols[1]:
             st.text_input(f"示例 {idx} · 角色说", key=f"rc_ex{idx}_role",
                           max_chars=rolecard.EXAMPLE_ROLE_MAX)
+    if st.button("让心屿先写 6 组示例", key="rc_gen_examples",
+                 help="按卡上的身份与口吻先写 6 组，挑一组填进去再自己改。"):
+        st.session_state.rc_example_candidates = examples.card_candidates(_raw())
+    pairs = st.session_state.get("rc_example_candidates") or []
+    if pairs:
+        idx = st.selectbox("挑一组", range(len(pairs)), key="rc_ex_pick",
+                           format_func=lambda i: f"{pairs[i][0]} → {pairs[i][1]}")
+        for slot in (1, 2):
+            st.button(f"填到示例 {slot}", key=f"rc_fill_ex{slot}",
+                      on_click=_fill_example, args=(slot, pairs[idx]))
     st.text_input(f"禁忌（用；分隔，最多 {rolecard.TABOO_COUNT_MAX} 条，"
                   f"每条 {rolecard.TABOO_MAX} 字以内）", key="rc_taboos",
                   placeholder="例如：我懂你；你应该")

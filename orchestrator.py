@@ -12,7 +12,7 @@ import time
 import agent
 import agent_loop
 import coordinator
-import episode_store, memory_extract, quiz_store, rolecard_memory
+import episode_store, examples, memory_extract, quiz_store, rolecard_guard, rolecard_memory
 import guardian
 import knowledge
 import memory
@@ -203,8 +203,8 @@ def handle(text: str, sid: str, history: list[dict], persona_id: str,
                  state.get("cooldown", 0), state.get("ever_crisis", False))
     state["cooldown"] = max(0, state.get("cooldown", 0) - 1)
     if not is_rolecard:  # P16（m00002）：A 只有 listener 收窄问句；guide / crisis 不受影响
-        facts["_role"] = dec["role"]
-        facts["_listener_hint"] = style.listener_hint(history)
+        facts["_role"], facts["_situation"] = dec["role"], examples.tag_of(text)  # P23 ①，同行省行数
+        facts["_listener_hint"] = style.listener_hint(history, eff_level)  # P23：L2 不给议程
     lore_fn = _no_lore if is_rolecard else knowledge.facts_for
     lore = _timed(trace, "lore", lore_fn, text, sid)               # 3 找事实
     prompt = _timed(trace, "prompt", agent.build_system_prompt, persona_id, facts, lore)
@@ -212,8 +212,8 @@ def handle(text: str, sid: str, history: list[dict], persona_id: str,
     post = _timed(trace, "post_check", guardian.guardian_post_check,   # 6 审
                   text, resp.get("text", ""), eff_level, dec["role"])
     reply = post.get("fixed_reply") or resp.get("text") or FALLBACK_LINE
-    if is_rolecard and (post.get("template_fallback") or reply == FALLBACK_LINE):
-        reply = rolecard.SAFE_FALLBACK   # [SAFE] B 的兜底也留在角色里
+    if is_rolecard:  # [SAFE] P25：B 的兜底留在角色里；出戏句与未到 L3 的热线在这里按句剥掉
+        reply = rolecard_guard.final_reply(reply, eff_level, bool(post.get("template_fallback")) or reply == FALLBACK_LINE)
     # [SAFE] 只润色复核通过的模型输出；模板兜底、L3、兜底句逐字不动。
     if (not is_rolecard and post["pass"] and not post.get("template_fallback")
             and eff_level != "L3" and reply != FALLBACK_LINE):

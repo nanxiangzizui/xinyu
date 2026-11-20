@@ -17,6 +17,7 @@ import streamlit as st
 
 import chat_ui
 import guardian
+import help_pages
 import rolecard
 import rolecard_enrich
 import rolecard_focus
@@ -207,6 +208,8 @@ def render_ended() -> None:
     st.warning("这次角色对话先停在这里。先把安全放在前面。")
     for item in pick_resources("L3", []):
         st.info(f"{item['title']}：{item['detail']}")
+    # P26：和 A 模式同一块——先给一个号，再给一句能直接发出去的话。
+    help_pages.next_step_block("rc")
     st.markdown("**如果想继续聊，请先调整好自己的状态，并确认现在是安全的。**")
     st.caption("如果还在危险里，请先联系上面的人。")
     if st.button("我好些了，继续吧", key="rc_resume"):

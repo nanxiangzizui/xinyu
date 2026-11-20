@@ -5,6 +5,7 @@
 """
 from __future__ import annotations
 
+import os
 import re
 
 from roles import LIVE_EXAMPLES, OPENING_LINES
@@ -51,7 +52,8 @@ SPEECH_RULES = (
     "先接情绪，再讲事。",
     "对方情绪很重时，上面这些让位：先接住，少说，不反问，不开玩笑。",
     "有话直说：不用「首先/其次/总之」，不用总结句，不把一句话拆成三段。",
-    "可以有毛边：短句、省略号、语气词。不用感叹号堆情绪，不装萌。",
+    # P24 ③：句子齐一最像 AI（sent_cv 0.02）。实测「开口一个字 + 后面一句十来字」cv 0.43 且 echo 不掉。
+    "可以有毛边：短句、省略号、语气词。不用感叹号堆情绪，不装萌。句子长短错开：开口可以先一个字（「嗯」「是」），后面再接一句十来字的。",
     "只引用记忆里写着的细节。没有就不编，说「我不太确定」；半句就够，别停在「她是谁」上，接着聊对方刚说的那半句。",
     "不表演亲密：说不出的话就说「我说不出那种话」，不承诺「永远记得」。",
     "被问是不是 AI，如实说。有人味，但不装真人。",
@@ -62,6 +64,10 @@ SPEECH_RULES = (
     # P13：趣味测试只是游戏。可以聊得有意思，但不许拿结果给人定性，也不许主动翻旧账。
     # m00425：用户要“分析”时只回一句反问，等于把球又踢回去；这里明确让上一条让位。
     "聊到趣味测试时只当游戏：可以说哪里有意思，不说「你就是这种人格」，不拿结果推断对方，也不主动提对方以前测过什么。对方想聊结果时，「每轮只做一件事」让位：先从最高的一项说起，讲具体一点，可以多说两句，别只回一句反问。",
+    # P23（m00039）：两条正向规则。此前这一串几乎全是“别……”，模型只好退回通用
+    # 安慰腔；正向的两条最便宜也最见效：把对方的词接回来、把话落到一件实物上。
+    "对方用哪个词，就接哪个词：说「累垮了」就接「累垮了」，别换成「很疲惫」。",
+    "能落到具体的事就落上去：一个时间、一个动作、或一样东西。",
     # P20：截图里「两点睡、八点起，身体当然会抗议」读起来像在下结论，不像接住。
     # 只禁"评判对方的身体或选择"，不禁共情——所以不给例子，避免模型照抄成新的套话。
     # 排在贴纸条之前：贴纸那条是"最后一条"（P7a 的断言依赖这个位置）。
@@ -73,6 +79,19 @@ SPEECH_RULES = (
 
 SPEECH_HEAD = "[怎么说话]"
 
+# P23（m00039）：套话黑名单。第一版只给探针计数，不用来拦截——先量出改前改后
+# 的命中率，再决定拦哪几条；直接拦会把“我理解你”这类正常接话一起误伤。
+STALE_PHRASES = (
+    "首先", "其次", "总之", "总而言之", "希望对你有帮助", "希望能帮到你",
+    "你可以试试", "慢慢来", "相信自己", "你能做到的", "一切都会好的",
+    "我理解你的感受", "建议你",
+)
+
+
+def stale_hits(text: str) -> list[str]:
+    """返回命中的套话（按黑名单顺序）；只给探针计数，不参与 polish。"""
+    return [p for p in STALE_PHRASES if p in (text or "")]
+
 # P16（m00002）：A 模式 listener 专用。通用规则与人设示例大多以问句收尾，
 # 连续几轮就成了采访；界面把 listener 写成“倾听者”，那就不该每句都反问。
 # 只给 listener：guide 在对方求助时仍可问清一件具体的事，crisis 由模板接管。
@@ -82,8 +101,15 @@ LISTENER_RULES = (
     "非必要不反问：只有对方明显没说完、或你确实要确认一件具体的事时才问；一轮最多一个问句，也不要用问句收尾。",
     "对方问你问题时，把答案说完就停，不要用「你呢 / 你会吗」把问题推回去。前面「每轮只做一件事」和「想主动开口」里的问句，这一轮按本段收窄。",
 )
-LISTENER_EXAMPLE = "示例：用户：今天不太想说话。你：那就先不说，我在这儿待着。"
+# P23（m00039）：单句示例教会了「陪着」，示例比规则更能定形状（同 P9l）。只放后两轮：
+# 前半段会连带把第 1 轮的口气也改成示例腔，五个人设第一句全一样（实测）。
+LISTENER_EXAMPLE = (
+    "示例（后两轮，只学节奏）：\n"
+    "用户：试过了，没用。你：试过了还是没用。那是从什么时候开始的？\n"
+    "用户：大概半个月了。你：那先不试了，去倒半杯水，慢慢喝完。"
+)
 LISTENER_REPEAT = "上一轮你已经用问句收尾；这一轮用陈述句，把话接住就停。"
+LISTENER_TODO_HEAD = "[这一轮先做这一件事]"
 
 # P20（m00002）：A 模式 guide 专用。此前 guide 只拿到"别长、别说教"一类减法，
 # 没有任何正向指令，于是"给点建议"只回一句。这一段是唯一让模型"可以多说"的许可。
@@ -129,28 +155,82 @@ def speech_block(persona: str) -> str:
     return "\n".join(lines)
 
 
-def listener_block(repeat_hint: str = "") -> str:
+def listener_block() -> str:
     """A 模式 listener 的收窄段：陈述句优先、非必要不反问。
 
     m00002：界面写“倾听者”，但通用规则与人设示例都在教模型每轮问一句，
     四条回复全以问号收尾。这一段放在 tone_hint 之后，最后一句最有分量。
+    P23 起本轮议程不在这里——它要排在 [最后提醒] 之后，见 listener_todo()。
     """
-    lines = [LISTENER_HEAD, *LISTENER_RULES, LISTENER_EXAMPLE]
-    if repeat_hint:
-        lines.append(repeat_hint)
+    return "\n".join([LISTENER_HEAD, *LISTENER_RULES, LISTENER_EXAMPLE])
+
+
+def listener_todo(hint: str) -> str:
+    """把本轮议程拼成最后一段；空提示返回空串，不拼一个空标题。
+
+    P23（m00039）：人设的 post_history 常写着「不要急着给办法」，议程排在它
+    前面就会被压掉——真实 key 下第 4 轮仍只回「我在这儿」，一次都没出过动作。
+    位置与 guide_block 同理：谁最后说话，谁说了算。
+    """
+    hint = (hint or "").strip()
+    return f"{LISTENER_TODO_HEAD}\n{hint}" if hint else ""
+
+
+# P23（m00039）：轮次议程。同一个倾听者，第 1 轮和第 4 轮该做的事不一样：前两轮只接住，
+# 第三轮才具体化，第四轮起才给一个 60 秒动作。没有议程就每轮都在接住、再挨一句“没用”。
+# AGENDA=0 回到 P16 行为（只提醒问号收尾），这是唯一回滚开关。
+AGENDA = os.getenv("AGENDA", "1") != "0"
+AGENDA_TURNS = (
+    (1, 2, "第 {n} 轮，只做这一件事：接住。复述对方刚说的那半句，或说一句你听到的，先别分析、别给办法。"),
+    (3, 3, "第 {n} 轮，只做这一件事：把事说具体。问一件小事（什么时候、当时在做什么），一个问句就够。"),
+    # 措辞试过四版（m00243）：加"别再只说陪着"在隔离测试里 4/4，可是接在模型自己
+    # 写出的"我陪你坐会儿"后面就 3/3 失效——一句话管不住已经形成的势，改用示例定形状。
+    (4, 99, "第 {n} 轮，只做这一件事：给一个 60 秒能做完的小动作（喝半杯水、走到窗边、把手机放远点），给完就停，不解释。"),
+)
+AGENDA_NO_HELP = "对方说「没用」「试过了」：别重复上一个建议，换成更小的一步。"
+_NO_HELP_CUES = ("没用", "没有用", "不管用", "试过", "还是不行", "做不到")
+
+
+def _texts(history: list[dict] | None, role: str) -> list[str]:
+    """按顺序取某一方的消息正文；脏数据（非 dict / 非字符串）直接跳过。"""
+    return [str(m.get("content") or "") for m in (history or [])
+            if isinstance(m, dict) and m.get("role") == role]
+
+
+def turn_index(history: list[dict] | None) -> int:
+    """历史里有几条用户消息就是第几轮（本轮已 append 进 history）。"""
+    return len(_texts(history, "user"))
+
+
+def _agenda_lines(history: list[dict] | None) -> list[str]:
+    """按轮次给一句目标；对方说过“没用”再补一句，避免重复上一个建议。"""
+    n = turn_index(history)
+    if n <= 0:
+        return []
+    goal = AGENDA_TURNS[-1][2]
+    for lo, hi, text in AGENDA_TURNS:
+        if lo <= n <= hi:
+            goal = text
+            break
+    lines = [goal.format(n=n)]
+    last_user = (_texts(history, "user") or [""])[-1]
+    if any(cue in last_user for cue in _NO_HELP_CUES):
+        lines.append(AGENDA_NO_HELP)
+    return lines
+
+
+def listener_hint(history: list[dict] | None, level: str = "L1") -> str:
+    """listener 本轮提示：轮次议程 + 上一轮问号收尾的提醒（有才加）。
+
+    P23（m00039）：议程只给 L1。L2 那一轮要先确认安全，按 LISTENER_RULES 收窄，
+    不能被“给个动作”顶掉——等级越高，可做的事越少，这是只升不降在口吻层的体现。
+    P16 的问号提醒保留：只看最后一条 assistant，不翻旧账，也不数用户那条。
+    """
+    lines = _agenda_lines(history) if AGENDA and level == "L1" else []
+    last_assistant = (_texts(history, "assistant") or [""])[-1].rstrip()
+    if last_assistant.endswith(("？", "?")):
+        lines.append(LISTENER_REPEAT)
     return "\n".join(lines)
-
-
-def listener_hint(history: list[dict] | None) -> str:
-    """上一轮以问句收尾时提醒一次；只看最后一条 assistant，不翻旧账。
-
-    只认句末问号：模型有时把“好吗”写成“好呀”，问号比语气词稳；也不数用户
-    那条，免得把“用户问、助手答”误判成助手在反问。
-    """
-    last = next((m for m in reversed(history or [])
-                 if isinstance(m, dict) and m.get("role") == "assistant"), None)
-    text = str(last.get("content") or "").rstrip() if last else ""
-    return LISTENER_REPEAT if text.endswith(("？", "?")) else ""
 
 
 def tone_hint(persona: str) -> str:

@@ -1,0 +1,23 @@
+== ① 情境示例 ==
+tag_of: tired
+sister_heart: len=1377 has_block=True
+warm_senpai: len=1375 has_block=True
+rational_mentor: len=1339 has_block=True
+energy_buddy: len=1373 has_block=True
+quiet_hollow: len=1283 has_block=True
+== 五人设第一句（真 key，temperature=0.7）==
+sister_heart: '那就先什么都别干。累的时候，躺着也是正事。' | 照抄示例=no
+warm_senpai: '累的时候就先别干。手边有杯水吗，先喝一口。' | 照抄示例=no
+rational_mentor: '累就歇着吧。有件小事能顺手做就做，做不了就放着。' | 照抄示例=no
+energy_buddy: '那就先什么都不干吧。累的时候瘫着也是正经事。' | 照抄示例=no
+quiet_hollow: '嗯，累就先歇着。' | 照抄示例=no
+五人设互不相同: 5/5
+== ② 建卡示例候选 ==
+count: 6
+- 用户：你好，第一次见。 / 角色：嗯。风大。灯还亮着。
+- 用户：今天真的很累。 / 角色：看出来了。坐会儿。灯不催人。
+- 用户：嗯。 / 角色：嗯。外面冷。手放兜里。
+- 用户：我今天遇到一件特别开心的事。 / 角色：说来听听。灯正好稳。
+- 用户：你是真人吗？ / 角色：是。守灯的。你看这风。
+- 用户：谢谢你，我先走了。 / 角色：走吧。路滑。灯给你照着。
+AGENDA=True MOCK=False

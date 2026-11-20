@@ -81,7 +81,9 @@ def test_corrupt_main_recovers_bak():
 def test_block_has_header_and_cap():
     block = episode_store.render_block([_item(event="事" * 50),
                                         _item("考试", "考" * 50)])
-    assert block.startswith("（下面有对方以前提过的事")
+    # P24 ②：首句必须让模型"先说出记得的那个细节"，这是实测 0/5 → 5/5 的那一句。
+    assert block.startswith("（对方以前提过的事")
+    assert "说出你记得的那个细节" in block and "不要装作第一次听说" in block
     assert len(block) <= episode_store.BLOCK_MAX
 
 

@@ -245,13 +245,16 @@ def render_block(episodes: list[dict]) -> str:
     """拼进 A prompt 的“你记得的事”；只给转述，不逐字复述。"""
     if not episodes:
         return ""
-    lines = ["（下面有对方以前提过的事；相关时自然提一句，不要每轮都提，不要复述原话）",
-             "如果对方这轮提到这件事，先接一句你记得的版本，再回应；不要装第一次听说。"]
+    # P24 ②：措辞本身是实测出来的。原句「相关时自然提一句」在管线里 0–2/5 说出细节，
+    # 模型只复述用户这轮的原词；改成"先说出你记得的那个细节"后，配合同样放在最后一段才 5/5。
+    lines = ["（对方以前提过的事，这一轮正好接上：先用你自己的话说出你记得的那个细节——"
+             "时间，或当时正在做的事——再回应。不要装作第一次听说，也不要逐字复述。）"]
     for ep in episodes[:RECALL_LIMIT]:
         line = f"对方以前提过：{ep['event']}"
         if ep["mood"] != "其他":
             line += f"（当时{ep['mood']}）"
         lines.append(line)
+    lines.append("（对方没接这件事，就别硬提。）")
     return "\n".join(lines)[:BLOCK_MAX]
 
 

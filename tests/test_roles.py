@@ -41,16 +41,18 @@ def test_unknown_persona_falls_back():
 
 
 def test_prompt_within_budget():
-    """5. 含记忆、情景与 lore 时整段 prompt ≤ 1500 字，且安全区不被挤掉。
+    """5. 含记忆、情景与 lore 时整段 prompt ≤ 1650 字，且安全区不被挤掉。
 
-    P20 把安全条第 6 条写长了一点（两档长度各说清），软预算从 1400 放到 1500。
+    P20 把安全条第 6 条写长了一点（两档长度各说清），软预算从 1400 放到 1500；
+    P24 加了「[现在]」一段（含"别自己编钟点"一句，约 70 字），放到 1600；
+    P24 ③ 的句长规则再加约 50 字，实测 1610，放到 1650。
     """
     memory = {"preferred_tone": "温和", "emotion_tags": ["学业", "失眠"],
               "unresolved_issues": ["期末"], "rolling_summary": "在聊考试压力" * 5,
               "_episode_text": "对方以前提过：" + "下个月要搬家，" * 10 + "（当时焦虑）"}
     for pid in PERSONAS:
         prompt = build_system_prompt(pid, memory, ["校心理中心工作日可预约"])
-        assert len(prompt) <= 1500, (pid, len(prompt))
+        assert len(prompt) <= 1650, (pid, len(prompt))
         assert "不承诺保密" in prompt
         assert "下个月要搬家" in prompt
 

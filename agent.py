@@ -7,10 +7,12 @@ import json
 import logging
 import os
 import time
+from datetime import datetime, timedelta, timezone
 
 from dotenv import load_dotenv
 from openai import OpenAI
 
+import examples
 import rolecard
 import style
 from roles import BOUNDARIES_COMMON, PERSONAS, SAFETY_BLOCK, TIMEOUT
@@ -21,6 +23,8 @@ load_dotenv()
 logger = logging.getLogger(__name__)
 
 FENCE = chr(96) * 3          # 三个反引号，避免源码里出现 markdown 围栏
+# P24 ①：固定 UTC+8。Streamlit Cloud 跑 UTC，直接 now() 会在晚八点告诉模型"中午"。
+CN_TZ = timezone(timedelta(hours=8))
 MOCK_LINES = (
     "我在。你慢慢说，不着急。",
     "听起来这件事让你挺不好受的，我先陪你待一会儿。",
@@ -245,9 +249,7 @@ def _facts_block(memory: dict, lore: list[str]) -> str:
         text = _flat(memory.get(key))
         if text:
             rows.append(f"{label}：{text}")
-    episode_text = _flat(memory.get("_episode_text"))
-    if episode_text:
-        rows.append(episode_text)
+    # P24 ②：情景块不放这里——实测放事实区 0–2/5 说出细节，挪到 [最后提醒] 之后才 5/5。
     # 趣味测试记录只在用户自己提起时才由 quiz_store 送进来；平时没有这个键。
     quiz_text = _flat(memory.get("_quiz_text"))
     if quiz_text:
@@ -260,24 +262,25 @@ def _facts_block(memory: dict, lore: list[str]) -> str:
     return "\n".join(rows)
 
 
-def web_ready() -> bool:
-    """帮助模式要不要写"先查一次"：开关开，且至少有一家 provider 的 key。
+def now_line() -> str:
+    """P24 ①：给模型一个真实的钟点，否则它只能说"早点睡"这类放之四海的话。"""
+    t = datetime.now(CN_TZ)
+    return f"现在是 {t:%Y-%m-%d} 周{'一二三四五六日'[t.weekday()]} {t:%H:%M}（北京时间）。"
 
-    为什么还要看 key：没配 key 时工具会在 list_for_turn 里被挡掉，
-    这时再写"先上网查"只会让模型假装查过，比不写更糟。
-    """
+
+def web_ready() -> bool:
+    """帮助模式要不要写"先查一次"：开关开，且至少有一家 provider 的 key。"""
     if os.getenv("ALLOW_WEB", "0").strip() != "1":
         return False
     return bool(os.getenv("BOCHA_API_KEY") or os.getenv("TAVILY_API_KEY"))
 
 
 def _style_block(p: dict, persona_id: str, tone_code: str = "",
-                 role: str = "", listener_hint: str = "") -> str:
+                 role: str = "", situation: str = "") -> str:
     """风格区只改四样：称呼 / 语气 / 句长 / emoji，外加 taboos、示例与开场偏好。"""
-    lines = [
-        f"你是「{p['name']}」，称呼对方为「{p['address']}」。",
-        f"语气：{p['tone']}。每条回复约 {p['sentence_len']} 字以内。",
-    ]
+    lines = [f"你是「{p['name']}」，称呼对方为「{p['address']}」。",
+             # P24 ③：「每条回复约 N 字」会被读成每句都这么长（指纹 sent_cv 0.02），改成总长 + 错开。
+             f"语气：{p['tone']}。整条回复约 {p['sentence_len']} 字以内，句子长短错开，别每句都差不多长。"]
     # 开场偏好（温柔/轻松/直接）与 persona 语气不冲突：一个管底子，一个管这一轮。
     tone = style.tone_line(tone_code)
     if tone:
@@ -292,13 +295,17 @@ def _style_block(p: dict, persona_id: str, tone_code: str = "",
     speech = style.speech_block(persona_id)
     if speech:
         lines.append(speech)
+    # P23 ①：这一轮像哪种情境，就给一条同情境的开口；命中不了整段省略，不猜。
+    same = examples.situational(persona_id, situation)
+    if same:
+        lines.append(same)
     hint = style.tone_hint(persona_id)
     if hint:
         lines.append(hint)
     # P16（m00002）：放在 tone_hint 之后，让“这一轮用陈述句”成为离用户最近的一句。
     # 只收窄 listener；guide 求助时仍可问清一件事，crisis 走模板。
     if role == "listener":
-        lines.append(style.listener_block(listener_hint))
+        lines.append(style.listener_block())
     return "\n".join(lines)
 
 
@@ -318,14 +325,25 @@ def build_system_prompt(persona_id: str, memory: dict, lore: list[str]) -> str:
         "[安全守则]\n" + SAFETY_BLOCK + "\n[说话边界]\n" + BOUNDARIES_COMMON,
         "[你的说话方式]\n" + _style_block(
             p, persona_key, memory.get("preferred_tone", ""),
-            str(memory.get("_role") or ""), str(memory.get("_listener_hint") or "")),
+            str(memory.get("_role") or ""), str(memory.get("_situation") or "")),
     ]
     facts = _facts_block(memory, lore or [])
     if facts:
         parts.append("[你记得的事]\n" + facts)
+    # P24 ①：钟点贴着 [最后提醒]；附一句"以它为准、别自己编"（实测模型会自己编"快一点了"）。
+    parts.append("[现在]\n" + now_line() + "\n提到时间以这一行为准，不要自己编钟点；对方没问时不必报具体时间。")
     parts.append("[最后提醒]\n" + p["post_history_instructions"])
     # P20：帮助段放最后一段。人设的 post_history 常写着"不要急着给办法"，
     # 只有排在它后面，"这一轮可以给步骤"才压得住；位置本身是设计的一部分。
-    if str(memory.get("_role") or "") == "guide":
+    role = str(memory.get("_role") or "")
+    if role == "guide":
         parts.append(style.guide_block(web_ready()))
+    elif role == "listener":
+        # P23（m00039）：轮次议程同样要压在 [最后提醒] 之后，否则只是废纸。
+        todo = style.listener_todo(str(memory.get("_listener_hint") or ""))
+        if todo:  # P24 ③：开口规则也只有在最后一段才生效（放规则区实测 sent_cv 0.09，这里 0.43）
+            parts.append(todo + "\n（后面那句用上对方刚说的那个词，十来字；跟上一句别一样长。）")
+    episode = _flat(memory.get("_episode_text"))
+    if episode:  # P24 ②：排在最末，才压得住 [最后提醒] 的「不要急着给办法」
+        parts.append("[这轮记得]\n" + episode)
     return "\n\n".join(parts)

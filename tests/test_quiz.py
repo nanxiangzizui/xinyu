@@ -214,8 +214,10 @@ def test_quiz_block_explains_dims_and_how_to_talk(monkeypatch):
     # P20：「帮我分析」会切成 guide，帮助段也随之进来——必须让位给"只解释结果"，
     # 否则测验分析会变成给建议、劝人改。两段指令不能互相打架。
     assert "只解释结果，不给动作" in prompt
-    # 测试块 + 帮助段是本项目最长的一类 prompt；软预算从 1800 放到 2000（仍远小于上下文）
-    assert len(prompt) <= 2000
+    # 测试块 + 帮助段是本项目最长的一类 prompt；软预算 1800 → 2000 → 2100
+    # （P23 的两条正向规则又加了约 70 字；P24 ③ 的句长规则再加约 50 字，实测 2133），
+    # 仍远小于上下文。
+    assert len(prompt) <= 2200
 
     orchestrator.handle("我上次那个测试还挺准", SID, [], "sister_heart", {})
     assert "先说最高的一项" not in prompts[-1]

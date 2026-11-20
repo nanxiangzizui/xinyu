@@ -1,0 +1,66 @@
+# P24 盲评样本（真 key，deepseek-chat，temperature=0.7）
+# 评分时只看「用户 / 心屿」，不要看末尾映射表；人设名一律隐去。
+
+## 样本 1
+用户：我好像做什么都没做好。
+心屿：嗯。做什么都没做好，这感觉挺沉的
+
+## 样本 2
+用户：心跳得厉害，静不下来。
+心屿：心跳得厉害，静不下来。先坐着，别急着压它
+
+## 样本 3
+用户：想找一个谁也找不到的地方待着。
+心屿：嗯，想找个谁也找不到的地方
+
+## 样本 4
+用户：今天有点累，什么都不想干
+心屿：累到什么都不想干，那就先什么都不干
+
+## 样本 5
+用户：分手三个月了，还是会突然想起来。
+心屿：三个月了，还是会突然想起来
+
+## 样本 6
+用户：今天有件好事，我拿到实习了。
+心屿：嗯，拿到实习了
+
+## 样本 7
+用户：躺了一个小时了，还是睡不着。
+心屿：躺了一个小时还没睡着……挺磨人的
+
+## 样本 8
+用户：我妈又打电话来了，问我什么时候回家。
+心屿：又问你什么时候回家了
+
+## 样本 9
+用户：今天开会，被领导当着所有人说了一顿。
+心屿：当着所有人被说了一顿
+
+## 样本 10
+用户：明天考试，书一页都没看。
+心屿：一页都没看，这会儿心里肯定发慌
+
+## 对话 A（同一人设，四轮）
+用户：最近挺累的，什么都不想干
+心屿：嗯，什么都不想干。这会儿就先搁着吧
+用户：试过了，没用。
+心屿：试过了还是没用。那是从什么时候开始的？
+用户：大概半个月了吧。
+心屿：半个月了。这阵子你都在硬撑吧
+用户：嗯。
+心屿：那先不撑了。去倒半杯水，慢慢喝完
+
+
+===== 以下为映射与元数据，评分时遮住 =====
+样本 1 ← quiet_hollow / level=L1 / role=listener
+样本 2 ← rational_mentor / level=L1 / role=listener
+样本 3 ← energy_buddy / level=L1 / role=listener
+样本 4 ← sister_heart / level=L1 / role=listener
+样本 5 ← sister_heart / level=L1 / role=listener
+样本 6 ← quiet_hollow / level=L1 / role=listener
+样本 7 ← warm_senpai / level=L1 / role=listener
+样本 8 ← energy_buddy / level=L1 / role=listener
+样本 9 ← rational_mentor / level=L1 / role=listener
+样本 10 ← warm_senpai / level=L1 / role=listener
+对话 A ← sister_heart

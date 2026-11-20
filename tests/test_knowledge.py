@@ -93,9 +93,11 @@ def test_card_not_in_trace_or_log(monkeypatch):
 
 
 def test_prompt_budget_with_card():
-    """9. 卡是最坏情况：五套人设加卡后仍 ≤1500 字；卡本身也守 45 字上限。
+    """9. 卡是最坏情况：五套人设加卡后仍 ≤1700 字；卡本身也守 45 字上限。
 
-    P20 加长了安全条第 6 条与第 14 条，软预算从 1400 放到 1500（仍远小于上下文）。
+    P20 加长了安全条第 6 条与第 14 条，软预算从 1400 放到 1500；P23 的两条
+    正向规则又加了 45 字，放到 1560；P24 的 [现在] 段再加约 70 字，放到 1600；
+    P24 ③ 的句长规则再加约 50 字，实测 1638，放到 1700。
     """
     card = FAKE_CARD["text"]
     assert len(card) <= knowledge.CARD_MAX_CHARS
@@ -104,4 +106,4 @@ def test_prompt_budget_with_card():
            "_episode_text": "对方以前提过：" + "下个月要搬家，" * 10 + "（当时焦虑）"}
     for pid in PERSONAS:
         prompt = agent.build_system_prompt(pid, mem, [card])
-        assert len(prompt) <= 1500, (pid, len(prompt))
+        assert len(prompt) <= 1700, (pid, len(prompt))

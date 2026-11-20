@@ -84,13 +84,16 @@ def test_speech_block_is_persona_scoped():
 
 
 def test_prompt_budget_holds_with_live_voice():
-    """9. 加了活人感区后，最坏情况仍 ≤1500 字（含记忆、情景与 lore）。"""
+    """9. 加了活人感区与 P23 两条正向规则后，最坏仍 ≤1650 字（含记忆、情景与 lore）。
+
+    P24 ③ 把句长规则与 agent 的句长行写长（「长短错开」），实测最坏 1610，放到 1650。
+    """
     memory = {"preferred_tone": "温和", "emotion_tags": ["学业", "失眠"],
               "unresolved_issues": ["期末"], "rolling_summary": "在聊考试压力" * 5,
               "_episode_text": "对方以前提过：" + "下个月要搬家，" * 10 + "（当时焦虑）"}
     for pid in PERSONAS:
         prompt = build_system_prompt(pid, memory, ["校心理中心工作日可预约"])
-        assert len(prompt) <= 1500, (pid, len(prompt))
+        assert len(prompt) <= 1650, (pid, len(prompt))
 
 
 def test_listener_block_only_for_listener():
@@ -104,27 +107,93 @@ def test_listener_block_only_for_listener():
 
 
 def test_listener_repeat_hint_after_question_ending():
-    """11. 只有上一轮以问号收尾才加提示；只看最后一条 assistant。"""
+    """11. 只有上一轮以问号收尾才加问号提醒；只看最后一条 assistant。"""
     assert style.listener_hint([]) == ""
-    assert style.listener_hint([{"role": "user", "content": "你好？"}]) == ""
+    # P23：第 1 轮有轮次议程，但只要不出现问号提醒即可。
+    first = style.listener_hint([{"role": "user", "content": "你好？"}])
+    assert first and style.LISTENER_REPEAT not in first
     assert style.listener_hint([{"role": "assistant", "content": "我在。"}]) == ""
     assert style.listener_hint(
         [{"role": "assistant", "content": "今天怎么样？"}]) == style.LISTENER_REPEAT
     history = [{"role": "assistant", "content": "今天怎么样？"},
                {"role": "user", "content": "还行"},
                {"role": "assistant", "content": "那就好。"}]
-    assert style.listener_hint(history) == ""
+    tail = style.listener_hint(history)
+    assert tail and style.LISTENER_REPEAT not in tail
+
+
+def test_agenda_moves_by_turn():
+    """11b. m00039：1–2 轮只接住，3 轮才具体化，4 轮起给一个 60 秒动作。"""
+    def at(n: int) -> str:
+        hist: list[dict] = []
+        for _ in range(n):
+            hist += [{"role": "user", "content": "有点累"}, {"role": "assistant", "content": "嗯。"}]
+        return style.listener_hint(hist)
+
+    assert "第 1 轮" in at(1) and "接住" in at(1)
+    assert "接住" in at(2)
+    assert "第 3 轮" in at(3) and "具体" in at(3)
+    assert "第 4 轮" in at(4) and "60 秒" in at(4)
+    assert "60 秒" in at(9)          # 超过最后一档一直用最后一档
+    assert len({at(1), at(3), at(4)}) == 3
+
+
+def test_agenda_can_be_switched_off_and_skips_l2(monkeypatch):
+    """11c. AGENDA=0 回 P16 行为；L2 不给议程——那一轮先确认安全。"""
+    hist = [{"role": "user", "content": "累"}, {"role": "assistant", "content": "嗯。"}]
+    assert style.listener_hint(hist, "L2") == ""
+    monkeypatch.setattr(style, "AGENDA", False)
+    assert style.listener_hint(hist) == ""
+
+
+def test_agenda_swaps_advice_when_user_says_useless():
+    """11d. 对方说「试过 / 没用」时不重复上一个建议，换更小的一步。"""
+    hist: list[dict] = []
+    for _ in range(3):
+        hist += [{"role": "user", "content": "累"}, {"role": "assistant", "content": "嗯。"}]
+    hist.append({"role": "user", "content": "试过了，没用"})
+    hint = style.listener_hint(hist)
+    assert "第 4 轮" in hint and style.AGENDA_NO_HELP in hint
+    plain = style.listener_hint(hist[:-1] + [{"role": "user", "content": "还是累"}])
+    assert style.AGENDA_NO_HELP not in plain
+
+
+def test_stale_hits_counts_but_does_not_rewrite():
+    """11e. P23 套话黑名单只计数：命中的句子原样返回，拦不拦留给改后对比。"""
+    text = "慢慢来，首先照顾好自己。"
+    assert style.stale_hits(text) == ["首先", "慢慢来"]
+    assert style.stale_hits("今晚十一点半躺下。") == []
+    assert "慢慢来" in text and style.stale_hits("") == []
+
+
+def test_listener_agenda_sits_after_the_last_reminder():
+    """11f. m00039：议程必须压在 [最后提醒] 之后，否则被人设的“别急着给办法”顶掉。"""
+    hist = [{"role": "user", "content": "我试过了"}, {"role": "assistant", "content": "嗯。"}] * 2
+    hint = style.listener_hint(hist, "L1")
+    assert hint
+    prompt = build_system_prompt(
+        "sister_heart", {"_role": "listener", "_listener_hint": hint}, [])
+    assert prompt.index("[最后提醒]") < prompt.index(style.LISTENER_TODO_HEAD)
+    assert prompt.index(style.LISTENER_TODO_HEAD) < prompt.index(hint)
+    guide = build_system_prompt("sister_heart", {"_role": "guide"}, [])
+    assert style.LISTENER_TODO_HEAD not in guide
+    assert style.listener_todo("") == ""
 
 
 def test_listener_prompt_budget_still_holds():
-    """12. listener 段 + 重复提示后，最坏仍 ≤1700 字（远离上下文上限）。"""
+    """12. listener 段 + 轮次议程 + 问号提醒后，最坏仍 ≤2000 字（远离上下文上限）。
+
+    P23 把单句示例换成四轮弧线，实测最坏 1815，软预算从 1800 放到 1900；
+    P24 ③ 的句长规则再加约 45 字，实测 1903，放到 1950；
+    节奏句拼在 listener_todo 末尾后再多 53 字，实测 1956，放到 2000。
+    """
     memory = {"preferred_tone": "温和", "emotion_tags": ["学业", "失眠"],
               "unresolved_issues": ["期末"], "rolling_summary": "在聊考试压力" * 5,
               "_episode_text": "对方以前提过：" + "下个月要搬家，" * 10 + "（当时焦虑）",
               "_role": "listener", "_listener_hint": style.LISTENER_REPEAT}
     for pid in PERSONAS:
         prompt = build_system_prompt(pid, memory, ["校心理中心工作日可预约"])
-        assert len(prompt) <= 1700, (pid, len(prompt))
+        assert len(prompt) <= 2000, (pid, len(prompt))
 
 
 # ── P20：引导者的帮助模式 ──
@@ -141,14 +210,19 @@ def test_help_block_only_for_guide_and_after_the_last_reminder():
 
 
 def test_help_prompt_budget_still_holds():
-    """帮助段比闲聊多约 200 字：最坏（记忆 + 情景 + lore + 联网句）≤1900。"""
+    """帮助段比闲聊多约 250 字：最坏（记忆 + 情景 + lore + 联网句）≤2100。
+
+    P24 ② 把情景块从事实区挪到最后一段并换了首句，同一 fixture 从 1926 涨到 2004；
+    P24 ③ 的句长规则再加约 50 字，实测 2054，放到 2100。真实块受
+    episode_store.BLOCK_MAX=170 限制，不会无限长。
+    """
     memory = {"preferred_tone": "温和", "emotion_tags": ["学业", "失眠"],
               "unresolved_issues": ["期末"], "rolling_summary": "在聊考试压力" * 5,
               "_episode_text": "对方以前提过：" + "下个月要搬家，" * 10 + "（当时焦虑）",
               "_role": "guide"}
     for pid in PERSONAS:
         prompt = build_system_prompt(pid, memory, ["校心理中心工作日可预约"])
-        assert len(prompt) <= 1900, (pid, len(prompt))
+        assert len(prompt) <= 2100, (pid, len(prompt))
 
 
 def test_web_line_follows_the_switch(monkeypatch):

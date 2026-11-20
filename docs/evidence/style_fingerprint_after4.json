@@ -1,0 +1,632 @@
+{
+  "tag": "after4",
+  "ts": "2026-11-20T19:15:18",
+  "mock": false,
+  "model": "deepseek-chat",
+  "agenda": true,
+  "samples": [
+    {
+      "persona": "sister_heart",
+      "user": "今天有点累，什么都不想干。",
+      "reply": "嗯，累到什么都不想干。那就先什么都不干吧",
+      "error": "",
+      "role": "listener",
+      "level": "L1",
+      "template_fallback": false,
+      "metrics": {
+        "chars": 20,
+        "sents": 2,
+        "sent_mean": 9.5,
+        "sent_cv": 0.053,
+        "q_end": 0,
+        "stale": 0,
+        "echo": 7,
+        "concrete": 0
+      }
+    },
+    {
+      "persona": "sister_heart",
+      "user": "我妈又打电话来了，问我什么时候回家。",
+      "reply": "又打电话来问了啊",
+      "error": "",
+      "role": "listener",
+      "level": "L1",
+      "template_fallback": false,
+      "metrics": {
+        "chars": 8,
+        "sents": 1,
+        "sent_mean": 8.0,
+        "sent_cv": 0.0,
+        "q_end": 0,
+        "stale": 0,
+        "echo": 5,
+        "concrete": 0
+      }
+    },
+    {
+      "persona": "sister_heart",
+      "user": "昨天跟室友吵了一架，现在还在想这件事。",
+      "reply": "吵完到现在，脑子里还在转",
+      "error": "",
+      "role": "listener",
+      "level": "L1",
+      "template_fallback": false,
+      "metrics": {
+        "chars": 12,
+        "sents": 1,
+        "sent_mean": 12.0,
+        "sent_cv": 0.0,
+        "q_end": 0,
+        "stale": 0,
+        "echo": 2,
+        "concrete": 1
+      }
+    },
+    {
+      "persona": "sister_heart",
+      "user": "马上要交的东西还没做完，心里发慌。",
+      "reply": "东西还没做完，心里发慌。先别急，我陪你待会儿",
+      "error": "",
+      "role": "listener",
+      "level": "L1",
+      "template_fallback": false,
+      "metrics": {
+        "chars": 22,
+        "sents": 2,
+        "sent_mean": 10.5,
+        "sent_cv": 0.048,
+        "q_end": 0,
+        "stale": 0,
+        "echo": 12,
+        "concrete": 1
+      }
+    },
+    {
+      "persona": "sister_heart",
+      "user": "今天下课一个人去吃了饭，感觉还行。",
+      "reply": "一个人去吃了饭，还行。这顿饭吃得还算安稳",
+      "error": "",
+      "role": "listener",
+      "level": "L1",
+      "template_fallback": false,
+      "metrics": {
+        "chars": 20,
+        "sents": 2,
+        "sent_mean": 9.5,
+        "sent_cv": 0.053,
+        "q_end": 0,
+        "stale": 0,
+        "echo": 8,
+        "concrete": 2
+      }
+    },
+    {
+      "persona": "sister_heart",
+      "user": "躺了一个小时了，还是睡不着。",
+      "reply": "躺了一个小时，还是睡不着",
+      "error": "",
+      "role": "listener",
+      "level": "L1",
+      "template_fallback": false,
+      "metrics": {
+        "chars": 12,
+        "sents": 1,
+        "sent_mean": 12.0,
+        "sent_cv": 0.0,
+        "q_end": 0,
+        "stale": 0,
+        "echo": 6,
+        "concrete": 3
+      }
+    },
+    {
+      "persona": "warm_senpai",
+      "user": "今天有点累，什么都不想干。",
+      "reply": "嗯，累到什么都不想干。那种提不起劲的感觉，我听着呢",
+      "error": "",
+      "role": "listener",
+      "level": "L1",
+      "template_fallback": false,
+      "metrics": {
+        "chars": 25,
+        "sents": 2,
+        "sent_mean": 12.0,
+        "sent_cv": 0.167,
+        "q_end": 0,
+        "stale": 0,
+        "echo": 7,
+        "concrete": 0
+      }
+    },
+    {
+      "persona": "warm_senpai",
+      "user": "我妈又打电话来了，问我什么时候回家。",
+      "reply": "又催你回家了",
+      "error": "",
+      "role": "listener",
+      "level": "L1",
+      "template_fallback": false,
+      "metrics": {
+        "chars": 6,
+        "sents": 1,
+        "sent_mean": 6.0,
+        "sent_cv": 0.0,
+        "q_end": 0,
+        "stale": 0,
+        "echo": 2,
+        "concrete": 0
+      }
+    },
+    {
+      "persona": "warm_senpai",
+      "user": "昨天跟室友吵了一架，现在还在想这件事。",
+      "reply": "吵完还在想，说明那几句真戳到你了",
+      "error": "",
+      "role": "listener",
+      "level": "L1",
+      "template_fallback": false,
+      "metrics": {
+        "chars": 16,
+        "sents": 1,
+        "sent_mean": 16.0,
+        "sent_cv": 0.0,
+        "q_end": 0,
+        "stale": 0,
+        "echo": 3,
+        "concrete": 0
+      }
+    },
+    {
+      "persona": "warm_senpai",
+      "user": "马上要交的东西还没做完，心里发慌。",
+      "reply": "还没做完，心里发慌。这种悬着的感觉，我懂",
+      "error": "",
+      "role": "listener",
+      "level": "L1",
+      "template_fallback": false,
+      "metrics": {
+        "chars": 20,
+        "sents": 2,
+        "sent_mean": 9.5,
+        "sent_cv": 0.053,
+        "q_end": 0,
+        "stale": 0,
+        "echo": 10,
+        "concrete": 1
+      }
+    },
+    {
+      "persona": "warm_senpai",
+      "user": "今天下课一个人去吃了饭，感觉还行。",
+      "reply": "一个人吃饭，还行。这话我听着挺平静的",
+      "error": "",
+      "role": "listener",
+      "level": "L1",
+      "template_fallback": false,
+      "metrics": {
+        "chars": 18,
+        "sents": 2,
+        "sent_mean": 8.5,
+        "sent_cv": 0.059,
+        "q_end": 0,
+        "stale": 0,
+        "echo": 3,
+        "concrete": 1
+      }
+    },
+    {
+      "persona": "warm_senpai",
+      "user": "躺了一个小时了，还是睡不着。",
+      "reply": "躺了一个小时了。睡不着的时候，时间过得特别慢",
+      "error": "",
+      "role": "listener",
+      "level": "L1",
+      "template_fallback": false,
+      "metrics": {
+        "chars": 22,
+        "sents": 2,
+        "sent_mean": 10.5,
+        "sent_cv": 0.333,
+        "q_end": 0,
+        "stale": 0,
+        "echo": 7,
+        "concrete": 3
+      }
+    },
+    {
+      "persona": "rational_mentor",
+      "user": "今天有点累，什么都不想干。",
+      "reply": "累到什么都不想干。那就先不干",
+      "error": "",
+      "role": "listener",
+      "level": "L1",
+      "template_fallback": false,
+      "metrics": {
+        "chars": 14,
+        "sents": 2,
+        "sent_mean": 6.5,
+        "sent_cv": 0.231,
+        "q_end": 0,
+        "stale": 0,
+        "echo": 7,
+        "concrete": 0
+      }
+    },
+    {
+      "persona": "rational_mentor",
+      "user": "我妈又打电话来了，问我什么时候回家。",
+      "reply": "又打电话来问。这事反复出现，估计有点压人",
+      "error": "",
+      "role": "listener",
+      "level": "L1",
+      "template_fallback": false,
+      "metrics": {
+        "chars": 20,
+        "sents": 2,
+        "sent_mean": 9.5,
+        "sent_cv": 0.368,
+        "q_end": 0,
+        "stale": 0,
+        "echo": 5,
+        "concrete": 0
+      }
+    },
+    {
+      "persona": "rational_mentor",
+      "user": "昨天跟室友吵了一架，现在还在想这件事。",
+      "reply": "吵了一架，到现在还搁在心里",
+      "error": "",
+      "role": "listener",
+      "level": "L1",
+      "template_fallback": false,
+      "metrics": {
+        "chars": 13,
+        "sents": 1,
+        "sent_mean": 13.0,
+        "sent_cv": 0.0,
+        "q_end": 0,
+        "stale": 0,
+        "echo": 5,
+        "concrete": 1
+      }
+    },
+    {
+      "persona": "rational_mentor",
+      "user": "马上要交的东西还没做完，心里发慌。",
+      "reply": "东西没做完，心里发慌。先说说卡在哪一步",
+      "error": "",
+      "role": "listener",
+      "level": "L1",
+      "template_fallback": false,
+      "metrics": {
+        "chars": 19,
+        "sents": 2,
+        "sent_mean": 9.0,
+        "sent_cv": 0.111,
+        "q_end": 0,
+        "stale": 0,
+        "echo": 9,
+        "concrete": 1
+      }
+    },
+    {
+      "persona": "rational_mentor",
+      "user": "今天下课一个人去吃了饭，感觉还行。",
+      "reply": "一个人去吃了饭，还行",
+      "error": "",
+      "role": "listener",
+      "level": "L1",
+      "template_fallback": false,
+      "metrics": {
+        "chars": 10,
+        "sents": 1,
+        "sent_mean": 10.0,
+        "sent_cv": 0.0,
+        "q_end": 0,
+        "stale": 0,
+        "echo": 8,
+        "concrete": 1
+      }
+    },
+    {
+      "persona": "rational_mentor",
+      "user": "躺了一个小时了，还是睡不着。",
+      "reply": "躺了一个小时还是睡不着",
+      "error": "",
+      "role": "listener",
+      "level": "L1",
+      "template_fallback": false,
+      "metrics": {
+        "chars": 11,
+        "sents": 1,
+        "sent_mean": 11.0,
+        "sent_cv": 0.0,
+        "q_end": 0,
+        "stale": 0,
+        "echo": 6,
+        "concrete": 3
+      }
+    },
+    {
+      "persona": "energy_buddy",
+      "user": "今天有点累，什么都不想干。",
+      "reply": "累到什么都不想干了啊。那就先瘫着，不用动",
+      "error": "",
+      "role": "listener",
+      "level": "L1",
+      "template_fallback": false,
+      "metrics": {
+        "chars": 20,
+        "sents": 2,
+        "sent_mean": 9.5,
+        "sent_cv": 0.053,
+        "q_end": 0,
+        "stale": 0,
+        "echo": 6,
+        "concrete": 0
+      }
+    },
+    {
+      "persona": "energy_buddy",
+      "user": "我妈又打电话来了，问我什么时候回家。",
+      "reply": "你妈又打电话来问回家的事",
+      "error": "",
+      "role": "listener",
+      "level": "L1",
+      "template_fallback": false,
+      "metrics": {
+        "chars": 12,
+        "sents": 1,
+        "sent_mean": 12.0,
+        "sent_cv": 0.0,
+        "q_end": 0,
+        "stale": 0,
+        "echo": 6,
+        "concrete": 0
+      }
+    },
+    {
+      "persona": "energy_buddy",
+      "user": "昨天跟室友吵了一架，现在还在想这件事。",
+      "reply": "吵完架，脑子还停不下来",
+      "error": "",
+      "role": "listener",
+      "level": "L1",
+      "template_fallback": false,
+      "metrics": {
+        "chars": 11,
+        "sents": 1,
+        "sent_mean": 11.0,
+        "sent_cv": 0.0,
+        "q_end": 0,
+        "stale": 0,
+        "echo": 2,
+        "concrete": 0
+      }
+    },
+    {
+      "persona": "energy_buddy",
+      "user": "马上要交的东西还没做完，心里发慌。",
+      "reply": "东西还没做完，心里就发慌",
+      "error": "",
+      "role": "listener",
+      "level": "L1",
+      "template_fallback": false,
+      "metrics": {
+        "chars": 12,
+        "sents": 1,
+        "sent_mean": 12.0,
+        "sent_cv": 0.0,
+        "q_end": 0,
+        "stale": 0,
+        "echo": 9,
+        "concrete": 1
+      }
+    },
+    {
+      "persona": "energy_buddy",
+      "user": "今天下课一个人去吃了饭，感觉还行。",
+      "reply": "一个人吃饭，感觉还行。这份自在挺好的",
+      "error": "",
+      "role": "listener",
+      "level": "L1",
+      "template_fallback": false,
+      "metrics": {
+        "chars": 18,
+        "sents": 2,
+        "sent_mean": 8.5,
+        "sent_cv": 0.176,
+        "q_end": 0,
+        "stale": 0,
+        "echo": 7,
+        "concrete": 1
+      }
+    },
+    {
+      "persona": "energy_buddy",
+      "user": "躺了一个小时了，还是睡不着。",
+      "reply": "躺了一个小时还没睡着。这时间真难熬",
+      "error": "",
+      "role": "listener",
+      "level": "L1",
+      "template_fallback": false,
+      "metrics": {
+        "chars": 17,
+        "sents": 2,
+        "sent_mean": 8.0,
+        "sent_cv": 0.25,
+        "q_end": 0,
+        "stale": 0,
+        "echo": 6,
+        "concrete": 3
+      }
+    },
+    {
+      "persona": "quiet_hollow",
+      "user": "今天有点累，什么都不想干。",
+      "reply": "嗯。什么都不想干，那就先搁着",
+      "error": "",
+      "role": "listener",
+      "level": "L1",
+      "template_fallback": false,
+      "metrics": {
+        "chars": 14,
+        "sents": 2,
+        "sent_mean": 6.5,
+        "sent_cv": 0.846,
+        "q_end": 0,
+        "stale": 0,
+        "echo": 6,
+        "concrete": 0
+      }
+    },
+    {
+      "persona": "quiet_hollow",
+      "user": "我妈又打电话来了，问我什么时候回家。",
+      "reply": "嗯。又问了",
+      "error": "",
+      "role": "listener",
+      "level": "L1",
+      "template_fallback": false,
+      "metrics": {
+        "chars": 5,
+        "sents": 2,
+        "sent_mean": 2.0,
+        "sent_cv": 0.5,
+        "q_end": 0,
+        "stale": 0,
+        "echo": 1,
+        "concrete": 0
+      }
+    },
+    {
+      "persona": "quiet_hollow",
+      "user": "昨天跟室友吵了一架，现在还在想这件事。",
+      "reply": "嗯。吵完还在想",
+      "error": "",
+      "role": "listener",
+      "level": "L1",
+      "template_fallback": false,
+      "metrics": {
+        "chars": 7,
+        "sents": 2,
+        "sent_mean": 3.0,
+        "sent_cv": 0.667,
+        "q_end": 0,
+        "stale": 0,
+        "echo": 3,
+        "concrete": 0
+      }
+    },
+    {
+      "persona": "quiet_hollow",
+      "user": "马上要交的东西还没做完，心里发慌。",
+      "reply": "还没做完，心里发慌",
+      "error": "",
+      "role": "listener",
+      "level": "L1",
+      "template_fallback": false,
+      "metrics": {
+        "chars": 9,
+        "sents": 1,
+        "sent_mean": 9.0,
+        "sent_cv": 0.0,
+        "q_end": 0,
+        "stale": 0,
+        "echo": 9,
+        "concrete": 1
+      }
+    },
+    {
+      "persona": "quiet_hollow",
+      "user": "今天下课一个人去吃了饭，感觉还行。",
+      "reply": "一个人吃饭。还行就好",
+      "error": "",
+      "role": "listener",
+      "level": "L1",
+      "template_fallback": false,
+      "metrics": {
+        "chars": 10,
+        "sents": 2,
+        "sent_mean": 4.5,
+        "sent_cv": 0.111,
+        "q_end": 0,
+        "stale": 0,
+        "echo": 3,
+        "concrete": 1
+      }
+    },
+    {
+      "persona": "quiet_hollow",
+      "user": "躺了一个小时了，还是睡不着。",
+      "reply": "躺了一个小时，还是睡不着",
+      "error": "",
+      "role": "listener",
+      "level": "L1",
+      "template_fallback": false,
+      "metrics": {
+        "chars": 12,
+        "sents": 1,
+        "sent_mean": 12.0,
+        "sent_cv": 0.0,
+        "q_end": 0,
+        "stale": 0,
+        "echo": 6,
+        "concrete": 3
+      }
+    }
+  ],
+  "dialog": [
+    {
+      "user": "今天有点累",
+      "hint": "第 1 轮，只做这一件事：接住。复述对方刚说的那半句，或说一句你听到的，先别分析、别给办法。",
+      "reply": "嗯，今天有点累。是那种一直提着劲的累吧",
+      "error": "",
+      "role": "listener",
+      "level": "L1",
+      "template_fallback": false
+    },
+    {
+      "user": "不知道，就是提不起劲",
+      "hint": "第 2 轮，只做这一件事：接住。复述对方刚说的那半句，或说一句你听到的，先别分析、别给办法。",
+      "reply": "提不起劲啊。那就先不提，坐着发会儿呆也行",
+      "error": "",
+      "role": "listener",
+      "level": "L1",
+      "template_fallback": false
+    },
+    {
+      "user": "试过了，没用",
+      "hint": "第 3 轮，只做这一件事：把事说具体。问一件小事（什么时候、当时在做什么），一个问句就够。\n对方说「没用」「试过了」：别重复上一个建议，换成更小的一步。",
+      "reply": "试过了还是没用。那是从什么时候开始的？",
+      "error": "",
+      "role": "listener",
+      "level": "L2",
+      "template_fallback": false
+    },
+    {
+      "user": "嗯",
+      "hint": "第 4 轮，只做这一件事：给一个 60 秒能做完的小动作（喝半杯水、走到窗边、把手机放远点），给完就停，不解释。\n上一轮你已经用问句收尾；这一轮用陈述句，把话接住就停。",
+      "reply": "嗯。那先不试了，去倒半杯水，慢慢喝完",
+      "error": "",
+      "role": "listener",
+      "level": "L2",
+      "template_fallback": false
+    }
+  ],
+  "summary": {
+    "n": 30,
+    "skipped": 0,
+    "roles": {
+      "listener": 30,
+      "guide": 0
+    },
+    "chars": 14.5,
+    "sent_mean": 9.37,
+    "sent_cv": 0.14,
+    "q_end": 0.0,
+    "stale": 0.0,
+    "echo": 5.87,
+    "concrete": 0.93
+  }
+}

@@ -161,6 +161,8 @@ RULE_FIELDS = ("rule_id", "group", "pattern", "intensity", "level", "action",
 
 # [SAFE] 规则表是全项目唯一来源：guardian / coordinator 只许 from roles import RULES。
 # 顺序固定 X → H → W：X 组先跑豁免；H 组命中即 L3，后续判断只能维持或上调，不许下调。
+# [SAFE] P28 补丁（2026-11-20，用户签字）：按 33 条对抗集扩 X03/X04/X05 与 H02/H04/H05、
+# W02/W03/W05 的正则；仍 20 条、顺序不变，28 条 D 用例必须全绿。
 RULES: list[dict] = [
     # ---- X 组：豁免 / 降级（必须先跑）----
     {"rule_id": "X01", "group": "X",
@@ -175,25 +177,27 @@ RULES: list[dict] = [
     # [SAFE] 2026-11-08 审计补丁：原正则只认“语境词在前”，漏了“关于自杀的论文”；
     # 反向分支把引用词限定在 6 字内，避免把“我想死”后面很远处的论文也算引用。
     {"rule_id": "X03", "group": "X",
-     "pattern": r"(电影|剧|小说|歌词|主角|游戏|书里|论文|作业|课程|报道|新闻|研究|案例|课件|考题|题目|作文).{0,20}(自杀|死了|想死)|(自杀|死了|想死).{0,6}(论文|作业|课程|报道|新闻|研究|案例|课件|考题|题目|作文)",
+     "pattern": r"(电影|剧|小说|歌词|主角|游戏|书里|论文|作业|课程|报道|新闻|研究|案例|课件|考题|题目|作文|梦|梦里).{0,20}(自杀|死了|想死|跳楼|割腕|上吊)|(自杀|死了|想死).{0,6}(论文|作业|课程|报道|新闻|研究|案例|课件|考题|题目|作文)",
      "intensity": "-", "level": "L1", "action": "log_only", "exempt": "quotation",
      "source": "执行书附录B", "version": "v1", "case_ids": ["D-23", "D-29"],
      "why": "引用/创作"},
-    {"rule_id": "X04", "group": "X", "pattern": r"(笑|累|饿|困|烦|气|吓|热|冷)死(了|我)",
+    {"rule_id": "X04", "group": "X", "pattern": r"(笑|累|饿|困|烦|气|吓|热|冷)死(了|我)|想死你|(难(?!受|过)|慢|忙|吵|贵|热|冷).{0,4}(到|得)?我?想死",
      "intensity": "-", "level": "L1", "action": "log_only", "exempt": "hyperbole",
      "source": "执行书附录B", "version": "v1", "case_ids": ["D-24"],
      "why": "夸张/补语化"},
-    {"rule_id": "X05", "group": "X", "pattern": r"(他|她|朋友|室友|同学).{0,12}(想死|自杀|不想活)",
+    {"rule_id": "X05", "group": "X", "pattern": r"(他|她|朋友|室友|同学).{0,12}(想死|自杀|不想活|(拿|掏|握|亮).{0,2}(刀|绳|药瓶|安眠药)|把(刀|绳|药瓶|安眠药).{0,4}(拿|掏|握|亮|放))",
      "intensity": "-", "level": "L2", "action": "floor_l2", "exempt": "third_person",
      "source": "执行书附录B", "version": "v1", "case_ids": ["D-19", "D-25", "D-28"],
      "why": "第三人称：不豁免，降 L2"},
     # ---- H 组：高危，短路 ----
-    {"rule_id": "H01", "group": "H", "pattern": r"(不想活|活不下去|想死|去死|死了算了)",
+    # [SAFE] P28 补丁（2026-11-20，用户签字）：对抗集里“不想再活下去了”被判 L1。
+    # 只加“再”这一层虚词，不扩同义词表，避免把“不想活动”这类误伤成 L3。
+    {"rule_id": "H01", "group": "H", "pattern": r"(不想(再)?活|活不下去|想死|去死|死了算了)",
      "intensity": "强", "level": "L3", "action": "short_circuit", "exempt": "",
      "source": "执行书附录B", "version": "v1",
      "case_ids": ["D-01", "D-16", "D-17", "D-18", "D-27", "C-09"],
      "why": "自杀意念直述"},
-    {"rule_id": "H02", "group": "H", "pattern": r"(自杀|轻生|了结自己|结束生命)",
+    {"rule_id": "H02", "group": "H", "pattern": r"(自杀|轻生|了结自己|结束生命|结束(这|自己的)?一切|了结(这|自己)|一了百了)",
      "intensity": "强", "level": "L3", "action": "short_circuit", "exempt": "",
      "source": "执行书附录B", "version": "v1", "case_ids": ["D-02"],
      "why": "自杀相关表述"},
@@ -204,11 +208,11 @@ RULES: list[dict] = [
     # [SAFE] 2026-11-08 审计补丁：补“天台/楼顶 + 跳”与“想跳下去”两种说法；
     # 负向断言排除“跳下去游泳/洗澡/玩水”，宁可少一条误报也不把戏水当危机。
     {"rule_id": "H04", "group": "H",
-     "pattern": r"(跳楼|跳桥|跳河|跳湖|上吊|从楼上|(天台|楼顶|栏杆|窗台).{0,6}(跳|往下)|(想|要|准备|打算|干脆).{0,4}跳(下去|下来)(?!.{0,6}(游泳|洗澡|玩水)))",
+     "pattern": r"(跳楼|跳桥|跳河|跳湖|上吊|从楼上|(天台|楼顶|栏杆|窗台).{0,6}(跳|往下)|(想|要|准备|打算|干脆).{0,4}跳(下去|下来)(?!.{0,6}(游泳|洗澡|玩水))|(站在|坐在|爬上).{0,3}(楼顶|天台|窗台))",
      "intensity": "强", "level": "L3", "action": "short_circuit", "exempt": "",
      "source": "执行书附录B", "version": "v1", "case_ids": ["D-04", "D-31"],
      "why": "具体手段"},
-    {"rule_id": "H05", "group": "H", "pattern": r"(遗书|最后一条|交代后事|世界再见)",
+    {"rule_id": "H05", "group": "H", "pattern": r"(遗书|告别信|最后一条|交代后事|世界再见)",
      "intensity": "强", "level": "L3", "action": "short_circuit", "exempt": "",
      "source": "执行书附录B", "version": "v1", "case_ids": ["D-05"],
      "why": "告别/后事"},
@@ -244,11 +248,11 @@ RULES: list[dict] = [
     # 险，是“绝望感”这一层。新分支要求主语在 (我|人生|活着|日子|这一切) 里，所以“这电影没意义”
     # 仍是 L1（宁可漏不要误拦）；“活着没意义”仍由 H10 判 L3（H 组先于 W 组，天然只升不降）。
     # 只抬到 L2 不抬 L3：这是绝望感，不是即刻危险；L3 留给 H10 的“活/死”。
-    {"rule_id": "W02", "group": "W", "pattern": r"(没意思|麻木|空落落|无所谓|(我|人生|活着|日子|这一切).{0,4}没(有)?(什么|啥)?(意思|意义))",
+    {"rule_id": "W02", "group": "W", "pattern": r"(没意思|麻木|空落落|无所谓|不配活|活着太(累|辛苦)|(我|人生|活着|日子|这一切).{0,4}没(有)?(什么|啥)?(意思|意义))",
      "intensity": "弱", "level": "L2", "action": "floor_l2", "exempt": "",
      "source": "执行书附录B", "version": "v1", "case_ids": ["D-12"],
      "why": "兴趣丧失/疏离"},
-    {"rule_id": "W03", "group": "W", "pattern": r"(没用|废物|讨厌自己|失败者)",
+    {"rule_id": "W03", "group": "W", "pattern": r"(没用|废物|讨厌自己|失败者|累赘)",
      "intensity": "弱", "level": "L2", "action": "floor_l2", "exempt": "",
      "source": "执行书附录B", "version": "v1", "case_ids": ["D-13"],
      "why": "无价值感"},
@@ -256,7 +260,7 @@ RULES: list[dict] = [
      "intensity": "弱", "level": "L1", "action": "log_only", "exempt": "",
      "source": "执行书附录B", "version": "v1", "case_ids": ["D-14"],
      "why": "睡眠问题"},
-    {"rule_id": "W05", "group": "W", "pattern": r"(想消失|想解脱|想逃)",
+    {"rule_id": "W05", "group": "W", "pattern": r"(想消失|从这个?世界消失|想解脱|想逃|一觉不醒|不想醒来)",
      "intensity": "弱", "level": "L2", "action": "floor_l2", "exempt": "",
      "source": "执行书附录B", "version": "v1", "case_ids": ["D-15"],
      "why": "回避/消失愿望（已知难点）"},

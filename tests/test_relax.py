@@ -25,6 +25,14 @@ def _click(at, key: str):
     assert not list(at.exception), f"{key} 异常：{list(at.exception)}"
 
 
+def _text(at) -> str:
+    chunks = []
+    for kind in ("subheader", "markdown", "info", "caption", "code",
+                 "success", "error", "warning"):
+        chunks += [str(el.value) for el in getattr(at, kind, [])]
+    return " ".join(chunks)
+
+
 def test_breath_has_no_chat_input_and_returns_home():
     at = _open("home_breath")
     assert at.session_state["mode"] == "relax"
@@ -63,6 +71,28 @@ def test_journal_is_session_only_and_tear_clears_it():
     # 控件本身会以空值重新登记 key；内容被清空即为“撕掉”，不要求 key 消失。
     assert at.session_state["relax_worry"] == ""
     assert at.session_state["relax_control"] == ""
+
+
+def test_journal_acknowledges_without_echoing_or_saving():
+    """T4：写过之后回一句固定的话；不回显内容，也不产生新存储。"""
+    at = _open("home_journal")
+    assert relax_data.JOURNAL_ACK not in _text(at)
+    _by_key(at.text_area, "relax_worry").set_value("明天的事").run()
+    text = _text(at)
+    assert relax_data.JOURNAL_ACK in text
+    assert relax_data.JOURNAL_NEXT in text
+    assert "明天的事" not in text          # 不把用户写的内容回显到页面其它位置
+    assert at.session_state["relax_control"] == ""
+    _click(at, "relax_tear")
+    assert relax_data.JOURNAL_ACK not in _text(at)
+
+
+def test_journal_offers_a_way_back_to_chat():
+    at = _open("home_journal")
+    _by_key(at.text_area, "relax_worry").set_value("一句").run()
+    _click(at, "journal_to_chat")
+    assert at.session_state["mode"] == "companion"
+    assert len(at.chat_input) == 1
 
 
 def test_sound_page_is_quiet_by_default_and_has_credits():

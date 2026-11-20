@@ -44,6 +44,10 @@ JOURNAL_PROMPTS = (
     ("今天我能控制的一件小事", "喝水、洗脸、回一条消息，都算。"),
 )
 
+# [SAFE] P29：写完只回一句固定话，不回显用户写的内容，也不落盘。
+JOURNAL_ACK = "写下来了。不用回头改，也不用给谁看。"
+JOURNAL_NEXT = "如果还想说，可以回聊天；不想说，就停在这里。"
+
 EXTERNAL_LINKS = (
     {"label": "WindowSwap", "url": "https://www.window-swap.com/",
      "note": "看别人窗外的一分钟。"},

@@ -1,7 +1,8 @@
-"""app.py — P17 路由：首屏列表 / 陪伴 / 角色卡 / 测试 / 放松页。
+"""app.py — P17 路由：首屏列表 / 陪伴 / 角色卡 / 测试 / 放松页 / 求助 / 关于。
 
 页面只做路由与配置；聊天管线在 orchestrator，A 页在 companion_ui，
-B 页在 rolecard_ui，放松页在 relax_ui。这里不判级、不拼 prompt。
+B 页在 rolecard_ui，放松页在 relax_ui，求助页在 help_pages，边界页在 about。
+这里不判级、不拼 prompt。
 """
 from __future__ import annotations
 
@@ -43,9 +44,11 @@ _bridge_secrets()
 from theme import inject_theme, theme_picker
 from ui_common import (DEFAULT_PERSONA, DISCLAIMER, get_session_id,
                        home_enabled, rolecard_enabled)
+import about
 import agent
 import byok
 import companion_ui
+import help_pages
 import home
 import quiz_ui
 import relax_ui
@@ -129,6 +132,10 @@ def main() -> None:
     sid = get_session_id()
     if mode == "home":
         home.render()
+    elif mode == "help":
+        help_pages.render()
+    elif mode == "about":
+        about.render(sid)
     elif mode == "rolecard":
         rolecard_ui.render()
     elif mode == "quiz":

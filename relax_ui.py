@@ -70,6 +70,14 @@ def _journal() -> None:
         st.caption(prompt[1])
         st.text_area("写在这里", key=key, height=100,
                      label_visibility="collapsed")
+    # [SAFE] 只回一句固定话：不回显写了什么、不判断写得好不好、不存任何内容。
+    if any(st.session_state.get(k, "").strip()
+           for k in ("relax_worry", "relax_control")):
+        st.success(relax_data.JOURNAL_ACK)
+        st.caption(relax_data.JOURNAL_NEXT)
+        if st.button("回聊天，接着说", key="journal_to_chat"):
+            st.session_state["mode"] = "companion"
+            st.rerun()
     if st.button("撕掉", key="relax_tear"):
         for key in ("relax_worry", "relax_control"):
             st.session_state.pop(key, None)

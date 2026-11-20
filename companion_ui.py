@@ -14,6 +14,7 @@ import byok
 import chat_ui
 import coordinator
 import episode_store
+import help_pages
 import onboard
 import quiz_ui
 from logger import session_hash
@@ -188,4 +189,8 @@ def render(sid: str | None = None) -> None:
     # 无论有没有 pending，都要把输入框放回来；否则从测试页“聊一聊”过来后
     # 只能看到一条自动回复，没法继续说第二句。
     _turn(sid)
+    # P26：L3 的「下一步」画在消息流末尾、输入框之外（chat_input 自己进底部容器）。
+    # 不能画在 extra 里：那块只在本轮渲染，下一帧按钮就不存在，点击会被丢掉。
+    if st.session_state.get("last_level") == "L3" and st.session_state.messages:
+        help_pages.next_step_block("chat")
     _sidebar(sid)

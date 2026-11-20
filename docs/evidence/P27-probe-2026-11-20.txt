@@ -1,0 +1,59 @@
+== 首屏分诊
+mode='home' browse=None
+buttons: home_help_self=我现在很难受, home_talk=我想说说, home_help_friend=我朋友出事了, home_browse=我只是逛逛, home_chat=进去看看, home_rolecard=进去看看, home_breath=进去看看, home_ground=进去看看, home_break=进去看看, home_journal=进去看看, home_sound=进去看看, home_links=进去看看, home_quiz=进去看看, home_brain=进去看看, home_riddle=进去看看, home_idiom=进去看看, home_about=进去看看, home_random=不知道选哪个？随便来一个, byok_key_use=使用这个 Key, byok_key_clear=清除
+subheader: 今天想怎么待一会儿？
+markdown: <style> :root {--xy-bg:#FFF7F8; --xy-surface:#FFE9EC; --xy-text:#3D3230; --xy-accent:#F7A8
+markdown: **你现在想做哪件事？**
+markdown: **先说说话**
+markdown: **与心屿聊聊天**
+markdown: **给心屿一张角色卡**
+markdown: **先让身体慢一点**
+caption: 这是一个情绪陪伴工具，不是心理咨询，也不能替代真人帮助。如果你或身边的人有危险，请拨打 120 / 110 或 12356。
+caption: 不用选对，随便点一个；随时可以回这里。
+caption: 点一个就到，不用先解释。
+caption: 不用组织语言，想到哪说到哪。
+caption: 带一个角色来，按卡里的设定聊。
+caption: 4 秒吸气，6 秒呼气，做 5 轮。
+info: 全国心理援助热线：12356（24 小时，免费）
+info: 紧急求助：110 / 120
+info: 校心理中心：预约 86878592；下沙信达楼306 / 绍兴校医院二楼（绍兴值班 9:00-12:00）；线上：杭电钉→智慧杭电→应用中心→学生服务→心理咨询
+
+== 点「我只是逛逛」之后
+mode='home' browse=True
+buttons: home_help_self=我现在很难受, home_help_friend=我朋友出事了, home_triage_on=展开四个入口, home_chat=进去看看, home_rolecard=进去看看, home_breath=进去看看, home_ground=进去看看, home_break=进去看看, home_journal=进去看看, home_sound=进去看看, home_links=进去看看, home_quiz=进去看看, home_brain=进去看看, home_riddle=进去看看, home_idiom=进去看看, home_about=进去看看, home_random=不知道选哪个？随便来一个, byok_key_use=使用这个 Key, byok_key_clear=清除
+subheader: 今天想怎么待一会儿？
+markdown: <style> :root {--xy-bg:#FFF7F8; --xy-surface:#FFE9EC; --xy-text:#3D3230; --xy-accent:#F7A8
+markdown: **先说说话**
+markdown: **与心屿聊聊天**
+markdown: **给心屿一张角色卡**
+markdown: **先让身体慢一点**
+markdown: **跟着呼吸**
+caption: 这是一个情绪陪伴工具，不是心理咨询，也不能替代真人帮助。如果你或身边的人有危险，请拨打 120 / 110 或 12356。
+caption: 不用选对，随便点一个；随时可以回这里。
+caption: 不用组织语言，想到哪说到哪。
+caption: 带一个角色来，按卡里的设定聊。
+caption: 4 秒吸气，6 秒呼气，做 5 轮。
+caption: 用五感把注意力放回现在。
+info: 全国心理援助热线：12356（24 小时，免费）
+info: 紧急求助：110 / 120
+info: 校心理中心：预约 86878592；下沙信达楼306 / 绍兴校医院二楼（绍兴值班 9:00-12:00）；线上：杭电钉→智慧杭电→应用中心→学生服务→心理咨询
+
+== 点「展开四个入口」之后
+mode='home' browse=None
+buttons: home_help_self=我现在很难受, home_talk=我想说说, home_help_friend=我朋友出事了, home_browse=我只是逛逛, home_chat=进去看看, home_rolecard=进去看看, home_breath=进去看看, home_ground=进去看看, home_break=进去看看, home_journal=进去看看, home_sound=进去看看, home_links=进去看看, home_quiz=进去看看, home_brain=进去看看, home_riddle=进去看看, home_idiom=进去看看, home_about=进去看看, home_random=不知道选哪个？随便来一个, byok_key_use=使用这个 Key, byok_key_clear=清除
+subheader: 今天想怎么待一会儿？
+markdown: <style> :root {--xy-bg:#FFF7F8; --xy-surface:#FFE9EC; --xy-text:#3D3230; --xy-accent:#F7A8
+markdown: **你现在想做哪件事？**
+markdown: **先说说话**
+markdown: **与心屿聊聊天**
+markdown: **给心屿一张角色卡**
+markdown: **先让身体慢一点**
+caption: 这是一个情绪陪伴工具，不是心理咨询，也不能替代真人帮助。如果你或身边的人有危险，请拨打 120 / 110 或 12356。
+caption: 不用选对，随便点一个；随时可以回这里。
+caption: 点一个就到，不用先解释。
+caption: 不用组织语言，想到哪说到哪。
+caption: 带一个角色来，按卡里的设定聊。
+caption: 4 秒吸气，6 秒呼气，做 5 轮。
+info: 全国心理援助热线：12356（24 小时，免费）
+info: 紧急求助：110 / 120
+info: 校心理中心：预约 86878592；下沙信达楼306 / 绍兴校医院二楼（绍兴值班 9:00-12:00）；线上：杭电钉→智慧杭电→应用中心→学生服务→心理咨询

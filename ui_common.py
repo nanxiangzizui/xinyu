@@ -1,4 +1,4 @@
-"""ui_common.py — 页面共用的文案、会话 id 与开关。
+"""ui_common.py — 页面共用的文案、会话 id 与开关。  # P48LOOP
 
 不承载任何业务判断：只把三处都会用到的字符串和两个 feature flag 放在一起，
 免得 app / companion / home 各写一份免责声明。

@@ -43,6 +43,10 @@ data/**
 # 必须锚定根目录：不锚定会在 Windows（core.ignorecase）下把 docs/evidence/P47-* 这类证据目录也吃掉
 /p[0-9][0-9][-_]*/
 
+# docs/build_package.py 的 mkdtemp(prefix="xy_pkg_")：正常结束会自己删，
+# 中途失败（比如 zip 被占用）会留下 517 文件的整套拷贝，锚定根目录忽略
+/xy_pkg_*/
+
 # ---- 本地人工测试记录（含真人对话，绝不进仓库）----
 真人测试/
 测试*.txt

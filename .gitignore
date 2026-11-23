@@ -72,3 +72,6 @@ Desktop.ini
 
 # Word 打开文档时生成的锁文件（~$xxx.docx）
 ~$*
+
+# 截图脚本用的无头浏览器临时配置（docs/evidence 下，体积大、不入库）
+_edge*/

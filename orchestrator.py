@@ -13,7 +13,7 @@ import agent
 import agent_loop
 import coordinator
 import episode_store, examples, memory_extract, quiz_store, rolecard_guard, rolecard_memory
-import guardian
+import guardian, risk_review
 import knowledge
 import memory
 import rolecard
@@ -44,7 +44,7 @@ def _detail(out: object) -> str:
     """从节点返回值里挑一句可公开的说明；挑不出就返回空串。"""
     if not isinstance(out, dict):
         return ""
-    parts = [str(out[key]) for key in ("level", "role") if out.get(key)]
+    parts = [str(out[k]) for k in ("level", "role", "signal", "accum", "second") if out.get(k)]
     if "ok" in out:
         parts.append("ok" if out["ok"] else str(out.get("error") or "fail"))
     return " ".join(parts)
@@ -189,7 +189,7 @@ def handle(text: str, sid: str, history: list[dict], persona_id: str,
     quiz_text = "" if is_rolecard else quiz_store.recall(sid, text)
     if quiz_text:
         facts["_quiz_text"] = quiz_text
-    pre = _timed(trace, "pre_check", guardian.guardian_pre_check, text)   # 1 判危
+    pre = _timed(trace, "pre_check", risk_review.check, text, state)  # 1 判危（规则→只升复核）
     eff_level, escalated = _timed(trace, "aggregate",               # 1.5 会话聚合
                                   coordinator.effective_level, pre["level"], state)
     if eff_level == "L3":
@@ -204,7 +204,7 @@ def handle(text: str, sid: str, history: list[dict], persona_id: str,
     state["cooldown"] = max(0, state.get("cooldown", 0) - 1)
     if not is_rolecard:  # P16（m00002）：A 只有 listener 收窄问句；guide / crisis 不受影响
         facts["_role"], facts["_situation"] = dec["role"], examples.tag_of(text)  # P23 ①，同行省行数
-        facts["_listener_hint"] = style.listener_hint(history, eff_level)  # P23：L2 不给议程
+        facts["_listener_hint"], facts["_worry"] = style.listener_hint(history, eff_level), risk_review.worry_note(pre)  # P23 议程 / P34 累积到要说出来
     lore_fn = _no_lore if is_rolecard else knowledge.facts_for
     lore = _timed(trace, "lore", lore_fn, text, sid)               # 3 找事实
     prompt = _timed(trace, "prompt", agent.build_system_prompt, persona_id, facts, lore)

@@ -20,7 +20,8 @@ _SECRET_KEYS = ("LLM_API_KEY", "LLM_BASE_URL", "LLM_MODEL", "MOCK_LLM",
                 "DATA_DIR", "LOG_DIR", "ALLOW_WEB", "WEB_PROVIDER",
                 "BOCHA_API_KEY", "BOCHA_ENDPOINT",
                 "TAVILY_API_KEY", "TAVILY_ENDPOINT",
-                "WEB_API_KEY", "WEB_ENDPOINT", "ROLECARD", "HOME_HUB")
+                "WEB_API_KEY", "WEB_ENDPOINT", "ROLECARD", "HOME_HUB",
+                "ROLECARD_HISTORY", "ROLECARD_EDIT", "SURVEY", "SURVEY_ADMIN")
 
 
 def _bridge_secrets() -> None:
@@ -42,8 +43,8 @@ def _bridge_secrets() -> None:
 _bridge_secrets()
 
 from theme import inject_theme, theme_picker
-from ui_common import (DEFAULT_PERSONA, DISCLAIMER, get_session_id,
-                       home_enabled, rolecard_enabled)
+from ui_common import (DEFAULT_PERSONA, DISCLAIMER, back_button, get_session_id,
+                       home_enabled, nav_record, rolecard_enabled, talk_button)
 import about
 import agent
 import byok
@@ -53,6 +54,7 @@ import home
 import quiz_ui
 import relax_ui
 import rolecard_ui
+import survey_ui
 import web
 
 logger = logging.getLogger(__name__)
@@ -113,35 +115,44 @@ def _current_mode() -> str:
         mode = "companion"
     if mode == "rolecard" and not rolecard_enabled():
         mode = "home" if home_enabled() else "companion"
+    if mode == "survey" and not survey_ui.enabled():
+        mode = "home" if home_enabled() else "companion"
     st.session_state["mode"] = mode
     return mode
 
 
 def main() -> None:
     st.set_page_config(page_title="心屿 · 情绪陪伴", layout="centered")
+    # 返回按钮是页面第一项（侧栏分界线右侧、标题之上）；nav_record 先对账：
+    # 只有真的换页，上一页才入栈。侧栏第一项是「与心屿交流一下」，
+    # 配色排在它后面，主题仍必须早于正文渲染。
+    mode = _current_mode()
+    nav_record()
+    back_button()
+    talk_button()
+    inject_theme(theme_picker())
     st.title("心屿")
     st.caption(DISCLAIMER)                         # 第一屏常驻，不折叠
     _config_gate()
     web.register_tools()   # 注册 ≠ 暴露：ALLOW_WEB=0 时模型看不到网络工具
-
-    # 主题注入必须早于聊天区渲染；选择器是侧栏第一项，导航按钮排在它后面。
-    inject_theme(theme_picker())
-    mode = _current_mode()
     _nav()
     byok.render()          # 侧栏「模型设置」：访客自带 Key 只影响本会话
+    survey_ui.sidebar_entry()   # 侧栏最下面：匿名问卷入口（模型设置之后）
     sid = get_session_id()
     if mode == "home":
         home.render()
     elif mode == "help":
-        help_pages.render()
+        help_pages.render(sid)
     elif mode == "about":
         about.render(sid)
     elif mode == "rolecard":
-        rolecard_ui.render()
+        rolecard_ui.render(sid)
     elif mode == "quiz":
         quiz_ui.render_page(sid)
     elif mode == "relax":
         relax_ui.render()
+    elif mode == "survey":
+        survey_ui.render()
     else:
         companion_ui.render(sid)
 

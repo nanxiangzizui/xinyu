@@ -1,0 +1,9 @@
+P43 probe — no redundant "back to home" inside page bodies, 2026-11-22
+Page order: home -> journal -> back -> help/self -> back -> quiz -> back -> rolecard -> back.
+probe journal {"mainHomeCount":0,"mainHomeTexts":[],"sidebarHomeCount":1,"hasBack":true,"backDisabled":false,"backTop":96}
+probe help-self {"mainHomeCount":0,"mainHomeTexts":[],"sidebarHomeCount":1,"hasBack":true,"backDisabled":false,"backTop":96}
+probe quiz {"mainHomeCount":0,"mainHomeTexts":[],"sidebarHomeCount":1,"hasBack":true,"backDisabled":false,"backTop":96}
+probe rolecard {"mainHomeCount":0,"mainHomeTexts":[],"sidebarHomeCount":1,"hasBack":true,"backDisabled":false,"backTop":96}
+assertions: main area has zero "回首页" buttons; sidebar keeps exactly one; page-top back button stays visible at top=96.
+screenshots: 01-journal-no-page-home.png, 02-help-self-no-page-home.png, 03-quiz-no-page-home.png, 04-rolecard-single-home.png
+done

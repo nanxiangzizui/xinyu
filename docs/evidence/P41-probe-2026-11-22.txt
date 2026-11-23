@@ -1,0 +1,31 @@
+P41 back button probe - 2026-11-22
+Edge headless via CDP 9223, streamlit on 8517 (MOCK_LLM=1), viewport 1360x920.
+Method: measure the visible button whose text is "back to previous level"
+(rect.width > 0) and the sidebar element; left >= sidebarRight - 2 means the
+button sits right of the divider.
+
+probe home {"matches":2,"hasBack":true,"backText":"return to previous level","backDisabled":true,"backTop":96,"backLeft":473,"sidebarRight":300,"backRightOfDivider":true,"backNearTop":true}
+shot 01-home-back-disabled.png
+
+probe help-self {"matches":2,"hasBack":true,"backText":"return to previous level","backDisabled":false,"backTop":96,"backLeft":473,"sidebarRight":300,"backRightOfDivider":true,"backNearTop":true}
+shot 02-help-self-back-enabled.png
+
+click back -> home
+probe after-back {"matches":2,"hasBack":true,"backDisabled":true,"backTop":96,"backLeft":473,"sidebarRight":300,"backRightOfDivider":true,"backNearTop":true}
+shot 03-back-to-home.png
+
+enter help index
+shot 04-index.png
+enter sleep page
+shot 05-sleep.png
+
+click back -> help index (not home)
+probe after-back-index {"matches":2,"hasBack":true,"backDisabled":false,"backTop":96,"backLeft":473,"sidebarRight":300,"backRightOfDivider":true,"backNearTop":true}
+shot 06-back-to-index.png
+
+click back -> home
+shot 07-back-home-again.png
+
+assertions: backRightOfDivider true on home + help-self; backNearTop true on home;
+backDisabled true on home and after returning, false on help pages.
+done

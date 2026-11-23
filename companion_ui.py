@@ -52,6 +52,7 @@ def _clear(sid: str) -> None:
     st.session_state["last_level"] = "L1"
     st.session_state["last_reason"] = "default"
     st.session_state["levels"] = []
+    st.session_state["risk_signals"] = []   # P34：清空对话也清累积窗口，新会话从零数
     st.session_state["ob_open"] = ""
     st.session_state.pop("pending_turn", None)
     st.query_params["u"] = uuid4_hex()

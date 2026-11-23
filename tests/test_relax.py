@@ -38,7 +38,7 @@ def test_breath_has_no_chat_input_and_returns_home():
     assert at.session_state["mode"] == "relax"
     assert at.session_state["relax_page"] == "breath"
     assert len(at.chat_input) == 0
-    _click(at, "relax_home")
+    _click(at, "nav_back")
     assert at.session_state["mode"] == "home"
 
 

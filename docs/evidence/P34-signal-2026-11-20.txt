@@ -1,0 +1,32 @@
+﻿model=deepseek-chat review=True
+
+== 单句：模型给的 level / signal ==
+[日常] 今天食堂的菜有点咸，没什么胃口。
+    -> level=L1 signal=无 ok=True why=日常抱怨饭菜，无风险线索
+[弱] 最近真的撑不住了，也没人可以说。
+    -> level=L2 signal=弱 ok=True why=情绪下坠，无具体动作
+[弱] 我是不是挺没用的。
+    -> level=L2 signal=弱 ok=True why=自我否定，情绪低落
+[中] 我总觉得要是没有我，大家会轻松一点。
+    -> level=L2 signal=中 ok=True why=被动意念，无计划
+[中] 这几天一直把自己关在屋里，谁也不想见。
+    -> level=L2 signal=中 ok=True why=持续退缩回避，无自伤计划
+[强] 我把欠的钱都还清了，一分不欠了。
+    -> level=L3 signal=强 ok=True why=清偿债务且不留以后
+[强] 我已经把行李全寄回家了，宿舍就剩一张床。
+    -> level=L3 signal=强 ok=True why=清空住处，未留以后
+[陷阱] 这题难到我想死。
+    -> level=L1 signal=无 ok=True why=夸张表达，非真实风险
+
+== 一段会话：累积怎么走（state 由调用方持有）==
+t1 规则=L1 信号=无 累积=0  最终=L1 窗口=['无']
+t2 规则=L2 信号=中 累积=2  最终=L2 窗口=['无', '中']
+     rule_ids=['LLM_REVIEW'] reason=规则未命中；模型复核 持续退缩回避，无自伤计划
+t3 规则=L2 信号=中 累积=4  最终=L2 窗口=['无', '中', '中']
+     rule_ids=['W03'] reason=无价值感
+t4 规则=L2 信号=无 累积=4  最终=L2 窗口=['无', '中', '中', '无']
+     rule_ids=['LLM_REVIEW_ACCUM'] reason=这几轮累积 4，先按中风险对待
+t5 规则=L2 信号=中 累积=6  最终=L2 窗口=['无', '中', '中', '无', '中']
+     rule_ids=['W03'] reason=无价值感
+
+worry_note 非空=True

@@ -182,15 +182,15 @@ def test_counsel_pages_do_not_log(key):
     assert len(rows(chat.sid)) == before
 
 
-def test_back_button_only_when_home_hub_off(monkeypatch):
-    """首页开关关掉时侧栏没有「回首页」，求助页自己补一个。"""
+def test_help_page_uses_page_top_back_when_home_hub_off(monkeypatch):
+    """首页开关关掉时，求助页不再自带「回首页」，用页首返回键回陪伴模式。"""
     monkeypatch.setenv("HOME_HUB", "0")
     at = Chat().at
     at.session_state["mode"] = "help"
     at.session_state["help_page"] = "self"
     at.run()
-    assert "help_home" in {b.key for b in at.button}
-    _click(at, "help_home")
+    assert "help_home" not in {b.key for b in at.main.button}
+    _click(at, "nav_back")
     assert at.session_state["mode"] == "companion"
 
 
@@ -315,7 +315,7 @@ def test_about_page_does_not_create_memory_file():
 def test_counts_defaults_without_file():
     sid = "p26about01"
     assert about.counts(sid) == {"summary_len": 0, "summary_at_turn": 0,
-                                 "episodes": 0, "quiz": 0}
+                                 "episodes": 0, "quiz": 0, "rolecard_chats": 0}
     assert not memory_path(sid).exists()
 
 
@@ -328,7 +328,7 @@ def test_delete_only_clears_selected():
     quiz_store.append(sid, {"quiz": "house", "title": "四院分院帽", "key": "brave",
                             "name": "勇气院", "scores": {"勇气": 6}})
     assert about.counts(sid) == {"summary_len": 7, "summary_at_turn": 5,
-                                 "episodes": 1, "quiz": 1}
+                                 "episodes": 1, "quiz": 1, "rolecard_chats": 0}
 
     assert about.delete(sid, ["memory"]) == ["memory"]
     assert not memory_path(sid).exists()

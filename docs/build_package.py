@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""提交包构建：把要交给评委的文件复制成 心屿-v3.2/ 再打成一个 zip。
+"""提交包构建：把要交给评委的文件复制成 心屿-v3.3/ 再打成一个 zip。
 
 用法（bundled python）：
     python docs/build_package.py [输出 zip 路径]
@@ -20,7 +20,7 @@ import zipfile
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-PKG_NAME = "心屿-v3.2"
+PKG_NAME = "心屿-v3.3"
 
 # 四份材料在仓库 docs/ 下，进包时放根目录（step/S26 §6）
 MATERIALS = [
@@ -118,7 +118,7 @@ def _write_zip(pkg: Path, out: Path) -> None:
 
 
 def main() -> int:
-    out = Path(sys.argv[1]) if len(sys.argv) > 1 else ROOT.parent / "心屿MindIsle_提交包_v3.2.zip"
+    out = Path(sys.argv[1]) if len(sys.argv) > 1 else ROOT.parent / "心屿MindIsle_提交包_v3.3.zip"
     stage_root = Path(tempfile.mkdtemp(prefix="xy_pkg_"))
     pkg = stage_root / PKG_NAME
     pkg.mkdir(parents=True, exist_ok=True)

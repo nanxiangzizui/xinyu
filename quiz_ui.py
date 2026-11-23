@@ -130,10 +130,6 @@ def _done(standalone: bool = False) -> None:
         st.session_state["mode"] = "companion"
         reset_state()
         st.rerun()
-    if st.button("回首页", key="quiz_home"):
-        reset_state()
-        st.session_state["mode"] = "home"
-        st.rerun()
 
 
 def render(sid: str, standalone: bool = False) -> None:
@@ -154,10 +150,6 @@ def render_page(sid: str) -> None:
     """独立页：侧栏入口之外的第二个入口，进来先看声明。"""
     st.subheader("趣味小测试")
     st.caption("四个小游戏，没有对错，也不算命。结果会单独记下，只有你提起时才会聊到。")
-    if st.button("回首页", key="quiz_page_home"):
-        reset_state()
-        st.session_state["mode"] = "home"
-        st.rerun()
     if st.session_state.get(STATE) not in ("ack", "run", "done"):
         st.session_state.setdefault("messages", [])
         if st.button("开始选一个", key="quiz_page_start", type="primary"):

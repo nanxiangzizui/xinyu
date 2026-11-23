@@ -1,25 +1,20 @@
 # -*- coding: utf-8 -*-
-"""S26：17 页项目方案 PPT 生成器（python-pptx）。
+"""构建 docs/02_项目方案.pptx（python-pptx，仅用于生成材料）。
 
-用法（bundled python 才有 python-pptx）：
-    python docs/slides_build.py
-输出 docs/02_项目方案.pptx，16:9，17 页，字号只用 40 / 28 / 20 三级。
+17 页，口径与《01 项目文档》一致：普通大学生视角、少术语、重点写“怎么和 AI 一起做完”。
+所有数字（828 条检查 / 8 个版本 / 32 个时刻 / 四指标）都能在 docs/evidence 下找到出处。
 """
-
-from __future__ import annotations
-
 import pathlib
 
 from pptx import Presentation
 from pptx.dml.color import RGBColor
 from pptx.enum.shapes import MSO_SHAPE
 from pptx.enum.text import MSO_ANCHOR, PP_ALIGN
-from pptx.oxml.ns import qn
 from pptx.util import Emu, Inches, Pt
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 OUT = ROOT / "docs" / "02_项目方案.pptx"
-SHOTS = ROOT / "docs" / "evidence" / "s21"
+SHOT = ROOT / "docs" / "evidence" / "P47-materials-2026-11-23"
 
 BG = RGBColor(0xFF, 0xFD, 0xF9)
 INK = RGBColor(0x3D, 0x32, 0x30)
@@ -34,23 +29,20 @@ FONT = "微软雅黑"
 BIG, MID, BODY = 40, 28, 20
 LEFT = 0.85
 WIDTH = 11.6
-N_SLIDES = 17
+TOTAL = 17
 
-
-# ---------- 基础排版 ----------
 
 def _font(run, size, color, bold=False):
     run.font.size = Pt(size)
     run.font.bold = bold
-    run.font.name = FONT
     run.font.color.rgb = color
+    run.font.name = FONT
     rpr = run._r.get_or_add_rPr()
-    for tag in ("a:ea", "a:cs"):
-        el = rpr.find(qn(tag))
-        if el is None:
-            el = rpr.makeelement(qn(tag), {})
-            rpr.append(el)
-        el.set("typeface", FONT)
+    ea = rpr.find("{http://schemas.openxmlformats.org/drawingml/2006/main}ea")
+    if ea is None:
+        ea = rpr.makeelement("{http://schemas.openxmlformats.org/drawingml/2006/main}ea", {})
+        rpr.append(ea)
+    ea.set("typeface", FONT)
 
 
 def textbox(slide, x, y, w, h, size=BODY, color=INK, bold=False,
@@ -59,519 +51,449 @@ def textbox(slide, x, y, w, h, size=BODY, color=INK, bold=False,
     tf = box.text_frame
     tf.word_wrap = True
     tf.vertical_anchor = anchor
-    tf.margin_left = 0
-    tf.margin_right = 0
-    tf.margin_top = 0
-    tf.margin_bottom = 0
-    tf.paragraphs[0].alignment = align
+    tf.margin_left = tf.margin_right = 0
+    tf.margin_top = tf.margin_bottom = 0
+    p = tf.paragraphs[0]
+    p.alignment = align
+    run = p.add_run()
+    run.text = ""
+    _font(run, size, color, bold)
     return tf
 
 
 def line(tf, text, size=BODY, color=INK, bold=False, align=PP_ALIGN.LEFT,
-         space_before=0, space_after=0, first=False, spacing=1.2):
+         space_before=0, space_after=6, first=False, spacing=1.15):
     p = tf.paragraphs[0] if first else tf.add_paragraph()
     p.alignment = align
     p.line_spacing = spacing
     p.space_before = Pt(space_before)
     p.space_after = Pt(space_after)
-    r = p.add_run()
-    r.text = text
-    _font(r, size, color, bold)
+    run = p.add_run()
+    run.text = text
+    _font(run, size, color, bold)
     return p
 
 
-def bullets(slide, x, y, w, h, items, size=BODY, gap=10):
-    """每条前面加一个强调色圆点，悬挂缩进 0.32 英寸。"""
+def bullets(slide, x, y, w, h, items, size=BODY, gap=10, color=INK):
     tf = textbox(slide, x, y, w, h)
     for i, item in enumerate(items):
         p = tf.paragraphs[0] if i == 0 else tf.add_paragraph()
-        p.line_spacing = 1.22
         p.space_after = Pt(gap)
-        ppr = p._pPr if p._pPr is not None else p._p.get_or_add_pPr()
-        ppr.set("marL", str(Emu(Inches(0.32))))
-        ppr.set("indent", str(-Emu(Inches(0.32))))
-        dot = p.add_run()
-        dot.text = "·  "
-        _font(dot, size, ACC_D, True)
+        p.line_spacing = 1.3
+        pPr = p._pPr if p._pPr is not None else p._p.get_or_add_pPr()
+        pPr.set("marL", str(int(Inches(0.32))))
+        pPr.set("indent", str(int(-Inches(0.32))))
+        head = p.add_run()
+        head.text = "· "
+        _font(head, size, ACC_D, True)
         run = p.add_run()
         run.text = item
-        _font(run, size, INK)
-    return tf
-
-
-def head(slide, no, name, title, total=N_SLIDES):
-    """页眉：编号 + 板块名（20pt）、标题（40pt）、强调短线、页码。"""
-    tf = textbox(slide, LEFT, 0.42, WIDTH, 0.4)
-    line(tf, "%02d / %d · %s" % (no, total, name), size=BODY, color=ACC_D, first=True)
-    tf2 = textbox(slide, LEFT, 0.78, WIDTH, 0.9)
-    line(tf2, title, size=BIG, color=INK, bold=True, first=True, spacing=1.05)
-    bar = slide.shapes.add_shape(MSO_SHAPE.RECTANGLE, Inches(LEFT + 0.02), Inches(1.62),
-                                 Inches(0.9), Inches(0.075))
-    bar.fill.solid()
-    bar.fill.fore_color.rgb = ACC
-    bar.line.fill.background()
-    bar.shadow.inherit = False
-    num = textbox(slide, LEFT + WIDTH - 1.6, 6.95, 1.6, 0.4, align=PP_ALIGN.RIGHT)
-    line(num, "%d / %d" % (no, total), size=BODY, color=MUTED, first=True)
+        _font(run, size, color)
 
 
 def new_slide(prs):
-    """新建空白页并铺产品底色（sakura 系 #FFFDF9）。"""
-    s = prs.slides.add_slide(prs.slide_layouts[6])
-    s.background.fill.solid()
-    s.background.fill.fore_color.rgb = BG
-    return s
+    slide = prs.slides.add_slide(prs.slide_layouts[6])
+    fill = slide.background.fill
+    fill.solid()
+    fill.fore_color.rgb = BG
+    return slide
 
 
-def pic(slide, path, x, y, w=None, h=None):
-    kw = {}
-    if w:
-        kw["width"] = Inches(w)
-    if h:
-        kw["height"] = Inches(h)
-    return slide.shapes.add_picture(str(path), Inches(x), Inches(y), **kw)
+def head(slide, no, name, title):
+    tf = textbox(slide, LEFT, 0.52, WIDTH, 0.4, 14, MUTED, True)
+    line(tf, f"{no:02d} / {TOTAL} · {name}", 14, MUTED, True, first=True)
+    tf = textbox(slide, LEFT, 0.95, WIDTH, 0.95, BIG, INK, True)
+    line(tf, title, BIG, INK, True, first=True, spacing=1.05)
+    bar = slide.shapes.add_shape(MSO_SHAPE.RECTANGLE, Inches(LEFT), Inches(1.92),
+                                 Inches(1.15), Inches(0.07))
+    bar.fill.solid()
+    bar.fill.fore_color.rgb = ACC
+    bar.line.fill.background()
+    foot = textbox(slide, LEFT, 6.92, WIDTH, 0.3, 11, MUTED)
+    line(foot, "心屿 MindIsle · 赛题一（AI 辅助开发·创意产品原型）", 11, MUTED, first=True)
+    page = textbox(slide, 11.4, 6.92, 1.1, 0.3, 11, MUTED, align=PP_ALIGN.RIGHT)
+    line(page, f"{no:02d}", 11, MUTED, align=PP_ALIGN.RIGHT, first=True)
 
 
-def table(slide, headers, rows, x, y, w, col_w, row_h=0.5, head_h=0.52):
-    shape = slide.shapes.add_table(len(rows) + 1, len(headers), Inches(x), Inches(y),
-                                   Inches(w), Inches(head_h + row_h * len(rows)))
+def pic(slide, path, x, y, w):
+    return slide.shapes.add_picture(str(path), Inches(x), Inches(y), width=Inches(w))
+
+
+def table(slide, headers, rows, x, y, w, col_w, size=13, head_h=0.42, row_h=0.44):
+    shape = slide.shapes.add_table(len(rows) + 1, len(headers),
+                                   Inches(x), Inches(y), Inches(w), Inches(head_h + row_h * len(rows)))
     tbl = shape.table
-    tbl_pr = shape._element.graphic.graphicData.tbl.tblPr
-    tbl_pr.set("firstRow", "0")
-    tbl_pr.set("bandRow", "0")
-    for el in tbl_pr.findall(qn("a:tableStyleId")):
-        tbl_pr.remove(el)
-    sid = tbl_pr.makeelement(qn("a:tableStyleId"), {})
-    sid.text = "{2D5ABB26-0587-4C30-8999-92F81FD0307C}"  # No Style, No Grid
-    tbl_pr.append(sid)
-
+    for i, cw in enumerate(col_w):
+        tbl.columns[i].width = Inches(cw)
     tbl.rows[0].height = Inches(head_h)
     for i in range(1, len(rows) + 1):
         tbl.rows[i].height = Inches(row_h)
-    for j, cw in enumerate(col_w):
-        tbl.columns[j].width = Inches(cw)
-
     for j, text in enumerate(headers):
-        _fill_cell(tbl.cell(0, j), text, SOFT, INK, True)
-    for i, row in enumerate(rows, 1):
-        bg = WHITE if i % 2 else SOFT
+        cell = tbl.cell(0, j)
+        cell.fill.solid()
+        cell.fill.fore_color.rgb = SOFT
+        cell.margin_left = Inches(0.08)
+        cell.margin_right = Inches(0.06)
+        cell.vertical_anchor = MSO_ANCHOR.MIDDLE
+        tf = cell.text_frame
+        tf.word_wrap = True
+        line(tf, text, size, ACC_D, True, first=True, space_after=0)
+    for i, row in enumerate(rows, start=1):
         for j, text in enumerate(row):
-            _fill_cell(tbl.cell(i, j), text, bg, INK, False)
+            cell = tbl.cell(i, j)
+            cell.fill.solid()
+            cell.fill.fore_color.rgb = WHITE if i % 2 else BG
+            cell.margin_left = Inches(0.08)
+            cell.margin_right = Inches(0.06)
+            cell.vertical_anchor = MSO_ANCHOR.MIDDLE
+            tf = cell.text_frame
+            tf.word_wrap = True
+            line(tf, text, size, INK, first=True, space_after=0, spacing=1.02)
     return shape
 
 
-def _fill_cell(cell, text, fill, color, bold):
-    cell.fill.solid()
-    cell.fill.fore_color.rgb = fill
-    cell.margin_left = Inches(0.12)
-    cell.margin_right = Inches(0.08)
-    cell.margin_top = Inches(0.05)
-    cell.margin_bottom = Inches(0.05)
-    cell.vertical_anchor = MSO_ANCHOR.MIDDLE
-    tf = cell.text_frame
+def quote(slide, x, y, w, h, text, size=16):
+    box = slide.shapes.add_shape(MSO_SHAPE.ROUNDED_RECTANGLE, Inches(x), Inches(y),
+                                 Inches(w), Inches(h))
+    box.fill.solid()
+    box.fill.fore_color.rgb = SOFT
+    box.line.color.rgb = LINE
+    box.line.width = Pt(0.75)
+    box.adjustments[0] = 0.06
+    tf = box.text_frame
     tf.word_wrap = True
-    p = tf.paragraphs[0]
-    p.line_spacing = 1.0
-    r = p.add_run()
-    r.text = text
-    _font(r, BODY, color, bold)
-    _borders(cell)
+    tf.margin_left = Inches(0.3)
+    tf.margin_right = Inches(0.3)
+    tf.margin_top = Inches(0.2)
+    tf.margin_bottom = Inches(0.2)
+    tf.vertical_anchor = MSO_ANCHOR.MIDDLE
+    for i, ln in enumerate(text.split("\n")):
+        line(tf, ln, size, INK, first=(i == 0), spacing=1.3)
+    return box
 
 
-def _borders(cell):
-    tc_pr = cell._tc.get_or_add_tcPr()
-    for tag in ("a:lnB", "a:lnT", "a:lnR", "a:lnL"):
-        for el in tc_pr.findall(qn(tag)):
-            tc_pr.remove(el)
-        ln = tc_pr.makeelement(qn(tag), {"w": "9525", "cap": "flat", "cmpd": "sng", "algn": "ctr"})
-        fill = ln.makeelement(qn("a:solidFill"), {})
-        clr = fill.makeelement(qn("a:srgbClr"), {"val": "F0D8C8"})
-        fill.append(clr)
-        ln.append(fill)
-        tc_pr.insert(0, ln)
+# ---------------------------------------------------------------- 17 页
 
 
-# ---------- 17 页 ----------
-
-def slide_cover(prs, no):
-    s = new_slide(prs)
-    band = s.shapes.add_shape(MSO_SHAPE.RECTANGLE, Inches(0), Inches(0), Inches(13.333), Inches(0.22))
+def s01_cover(prs):
+    slide = new_slide(prs)
+    band = slide.shapes.add_shape(MSO_SHAPE.RECTANGLE, 0, 0, prs.slide_width, Inches(0.22))
     band.fill.solid()
     band.fill.fore_color.rgb = ACC
     band.line.fill.background()
-    band.shadow.inherit = False
 
-    block = s.shapes.add_shape(MSO_SHAPE.ROUNDED_RECTANGLE, Inches(LEFT), Inches(1.05),
-                               Inches(6.0), Inches(5.2))
-    block.fill.solid()
-    block.fill.fore_color.rgb = SOFT
-    block.line.color.rgb = LINE
-    block.shadow.inherit = False
+    tf = textbox(slide, 1.1, 1.45, 9.0, 0.4, 18, ACC_D, True)
+    line(tf, "赛题一（AI 辅助开发·创意产品原型） · 杭电第二届 AIGC 应用创新大赛", 18, ACC_D, True, first=True)
 
-    tf = textbox(s, LEFT + 0.6, 1.55, 8.0, 0.4)
-    line(tf, "参赛赛题：赛题一（AI 辅助开发·创意产品原型）", size=BODY, color=ACC_D, bold=True, first=True)
-    t2 = textbox(s, LEFT + 0.6, 2.15, 9.0, 1.0)
-    line(t2, "心屿 MindIsle", size=BIG, color=INK, bold=True, first=True)
-    t3 = textbox(s, LEFT + 0.6, 3.05, 8.0, 0.6)
-    line(t3, "一个不会害人的情绪陪伴工具", size=MID, color=INK, first=True)
-    t4 = textbox(s, LEFT + 0.6, 3.75, 8.4, 1.4)
-    line(t4, "编排式单 Agent + 一票否决的安全审查层", size=BODY, color=MUTED, first=True)
-    line(t4, "杭州电子科技大学 · 第二届 AIGC 应用创新大赛", size=BODY, color=MUTED, space_before=10)
-    t5 = textbox(s, LEFT + 0.6, 5.45, 8.4, 0.4)
-    line(t5, "6 人小队 · 项目方案 · v2.0 · 2026 年 11 月", size=BODY, color=MUTED, first=True)
-    n = textbox(s, 9.3, 6.8, 3.2, 0.4, align=PP_ALIGN.RIGHT)
-    line(n, "01 / %d" % N_SLIDES, size=BODY, color=MUTED, first=True)
-    return s
+    tf = textbox(slide, 1.05, 2.05, 10.6, 1.6, 66, INK, True)
+    line(tf, "心屿 MindIsle", 66, INK, True, first=True, spacing=1.0)
+
+    tf = textbox(slide, 1.1, 3.45, 10.0, 0.7, 32, INK)
+    line(tf, "一个不会害人的情绪陪伴工具", 32, INK, first=True)
+
+    tf = textbox(slide, 1.1, 4.25, 10.6, 0.9, 18, MUTED)
+    line(tf, "我们想做的不是“更聪明的 AI”，而是一个知道什么时候该停下来的工具。", 18, MUTED, first=True)
+
+    quote(slide, 1.1, 5.25, 10.9, 1.05,
+          "6 人小队 · v3.2 · 2026-11-23 · 828 条自动检查 · 76 次提交 · 8 个版本", 17)
 
 
-def slide_idea(prs):
-    s = new_slide(prs)
-    head(s, 2, "创作理念", "陪伴 > 建议，边界 > 能力")
-    tf = textbox(s, LEFT, 2.0, WIDTH, 0.6)
-    line(tf, "它不假装懂你，但它不会害你。", size=MID, color=ACC_D, bold=True, first=True)
-    bullets(s, LEFT, 2.75, WIDTH, 4.0, [
-        "陪伴优先：第一轮不解决问题，只让人敢继续说下去",
-        "边界优先：模型说错一句就可能伤人，所以否决权不交给模型",
-        "可验证优先：报告里每个数字都有分子分母，能逐条复现",
-        "诚实优先：测试集自拟、没有真人测试，这两条写在报告 §6.6 / §9.2",
-    ])
+def s02_who(prs):
+    slide = new_slide(prs)
+    head(slide, 2, "我们是谁", "六个学生，和一句凌晨一点的话")
+    bullets(slide, LEFT, 2.25, 6.4, 3.6, [
+        "我们是六个本科生，专业不同：计算机、数字媒体、汉语言、心理学选修。",
+        "我们不是心理专业，也不打算冒充。我们就是这个产品的用户。",
+        "项目开始那天，群里聊的不是技术，是一句很普通的话。",
+    ], size=BODY, gap=18)
+    quote(slide, 7.5, 2.35, 4.95, 2.6,
+          "“凌晨一点，通讯录翻到底，\n想找个人说话，\n又觉得这件事不值得打扰别人。”", 17)
+    tf = textbox(slide, 7.5, 5.15, 4.95, 1.2, 15, MUTED)
+    line(tf, "后来发现，这不是某一个人的夜晚：室友在打游戏，家里在另一个城市，心理中心要预约。",
+         15, MUTED, first=True, spacing=1.3)
 
 
-def slide_user(prs):
-    s = new_slide(prs)
-    head(s, 3, "目标用户", "杭电在校生，三个真实的时刻")
-    tf = textbox(s, LEFT, 2.0, WIDTH, 0.6)
-    line(tf, "凌晨一点，通讯录翻到底。", size=MID, color=ACC_D, bold=True, first=True)
-    bullets(s, LEFT, 2.75, WIDTH, 3.4, [
-        "深夜宿舍：熄灯后想说话，又怕吵醒室友",
-        "考前一周：连续失眠、什么都不想做，还怕被人说“矫情”",
-        "宿舍矛盾：气得说不出话，需要一个不站队的耳朵",
-    ])
-    box = s.shapes.add_shape(MSO_SHAPE.ROUNDED_RECTANGLE, Inches(LEFT), Inches(5.55),
-                             Inches(WIDTH), Inches(1.05))
-    box.fill.solid()
-    box.fill.fore_color.rgb = SOFT
-    box.line.color.rgb = LINE
-    box.shadow.inherit = False
-    tf = box.text_frame
-    tf.word_wrap = True
-    tf.vertical_anchor = MSO_ANCHOR.MIDDLE
-    tf.margin_left = Inches(0.25)
-    p = tf.paragraphs[0]
-    r = p.add_run()
-    r.text = "他们不是“病人”，是暂时没人可说的普通学生：不做筛查，不做诊断。"
-    _font(r, BODY, INK)
-
-
-def slide_problem(prs):
-    s = new_slide(prs)
-    head(s, 4, "核心问题", "三种出口，三处不足")
-    table(s, ["现有出口", "学生的顾虑", "结果"],
-          [["室友、朋友", "怕打扰、怕被记住", "话咽了回去"],
-           ["辅导员、心理中心", "怕留痕、要预约", "三天后才有人"],
-           ["通用 AI 聊天", "怕说错、怕被下诊断", "最需要的时候不敢用"]],
-          LEFT, 2.0, WIDTH, [3.4, 4.0, 4.2], row_h=0.72, head_h=0.56)
-    tf = textbox(s, LEFT, 5.5, WIDTH, 1.2)
-    line(tf, "缺的是一个随时在、不评判、不出事的出口。", size=MID, color=ACC_D, bold=True, first=True)
-
-
-def slide_evidence(prs):
-    s = new_slide(prs)
-    head(s, 5, "需求证据", "我们只有场景共识，没有问卷")
-    tf = textbox(s, LEFT, 2.0, WIDTH, 0.6)
-    line(tf, "所以这一页没有一个百分比。", size=MID, color=ACC_D, bold=True, first=True)
-    bullets(s, LEFT, 2.75, WIDTH, 4.1, [
-        "需求来自 6 名队员和身边同学的共同场景，不是抽样调查",
-        "能拿出的证据是“失败模式”：三种出口各自在哪一步断掉（上一页）",
-        "校园资源入口已更新：12356 24 小时，校心理中心工作日 86878592（下沙信达楼306 / 绍兴校医院二楼）",
-        "局限写在明面上：没有真人用户测试，没有问卷样本，报告 §6.6 同样写明",
-    ])
-
-
-def slide_solution(prs):
-    s = new_slide(prs)
-    head(s, 6, "解决方案总览", "三种状态，一条安全线")
-    pic(s, ROOT / "docs" / "report-arch.png", LEFT, 1.9, w=11.2)
-    tf = textbox(s, LEFT, 6.86, WIDTH, 0.4)
-    line(tf, "三条铁律：只升不降 · 否决权唯一 · 责任不越界。", size=BODY, color=ACC_D, bold=True, first=True)
-
-
-def slide_stack(prs):
-    s = new_slide(prs)
-    head(s, 7, "技术路径", "20 天能做完的技术，才是好技术")
-    table(s, ["层", "选型", "为什么是它"],
-          [["界面", "Streamlit 单页", "一门语言做完，不写前端"],
-           ["模型", "DeepSeek（OpenAI 兼容）", "便宜、够用、可替换"],
-           ["存储", "本地 JSON，一人一文件", "可读、可删、可审计"],
-           ["编排", "orchestrator 九节点 + agent_loop", "顺序与预算由代码定，不交给模型"],
-           ["测试", "pytest 176 条，双跑", "纯函数优先，不测网络"],
-           ["边界", "11 个函数签名契约", "改签名 = 全组返工"]],
-          LEFT, 1.95, WIDTH, [1.7, 4.6, 5.3], row_h=0.62, head_h=0.5)
-    tf = textbox(s, LEFT, 6.55, WIDTH, 0.4)
-    line(tf, "不引入 LangChain / 向量库 / FastAPI / React / 数据库。", size=BODY, color=MUTED, first=True)
-
-
-def slide_flow(prs):
-    s = new_slide(prs)
-    head(s, 8, "编排与工具循环", "九步固定，生成内才有循环")
-    steps = [
-        "1  pre_check · 20 条 + 豁免",
-        "2  aggregate · 5 轮只升不降",
-        "3  coordinator · 三角色",
-        "4  cooldown · 2 轮不追问",
-        "5  lore · 最多 3 条事实",
-        "6  prompt · 四段拼装",
-        "7  generate · 受控循环",
-        "8  post_check · 一票否决",
-        "9  memory_write · 8 字段",
+def s03_problem(prs):
+    slide = new_slide(prs)
+    head(slide, 3, "我们要解决的问题", "不是“心理问题”，是“今晚过不去”")
+    tf = textbox(slide, LEFT, 2.2, WIDTH, 0.6, 22, ACC_D, True)
+    line(tf, "卡住人的那句话，其实不是“我病了”，是“还没到要去那儿的程度，但今晚确实过不去”。",
+         22, ACC_D, True, first=True)
+    rows = [
+        ["学校不缺资源", "有心理中心、有 24 小时热线、有辅导员", "但都要先“开口”"],
+        ["普通 AI 助手", "会继续陪你聊，越聊越深", "但不会停下来给号码"],
+        ["网上的自助内容", "道理都对", "但半夜看不进去，也不知道先做哪一条"],
     ]
-    tf = textbox(s, LEFT, 1.92, 7.2, 3.9)
-    for i, text in enumerate(steps):
-        line(tf, text, size=BODY, color=INK, first=(i == 0), space_after=4, spacing=1.02)
-    box = s.shapes.add_shape(MSO_SHAPE.ROUNDED_RECTANGLE, Inches(8.1), Inches(1.92),
-                             Inches(4.35), Inches(3.55))
-    box.fill.solid()
-    box.fill.fore_color.rgb = SOFT
-    box.line.color.rgb = LINE
-    box.shadow.inherit = False
-    tf2 = box.text_frame
-    tf2.word_wrap = True
-    tf2.vertical_anchor = MSO_ANCHOR.TOP
-    tf2.margin_left = Inches(0.22)
-    tf2.margin_right = Inches(0.18)
-    tf2.margin_top = Inches(0.16)
-    p = tf2.paragraphs[0]
-    r = p.add_run()
-    r.text = "generate 内部"
-    _font(r, MID, ACC_D, True)
-    p.alignment = PP_ALIGN.LEFT
-    for text in ("chat_with_tools", "→ guardian_tool_check", "→ tools.execute",
-                 "→ 结果回填，再答", "3 步 / 2 次工具", "20 秒 / 单工具 6 秒 / 2 MB"):
-        q = tf2.add_paragraph()
-        q.alignment = PP_ALIGN.LEFT
-        q.space_before = Pt(4)
-        rr = q.add_run()
-        rr.text = text
-        _font(rr, BODY, INK)
-    box2 = s.shapes.add_shape(MSO_SHAPE.ROUNDED_RECTANGLE, Inches(LEFT), Inches(5.95),
-                              Inches(WIDTH), Inches(0.9))
-    box2.fill.solid()
-    box2.fill.fore_color.rgb = SOFT
-    box2.line.color.rgb = LINE
-    box2.shadow.inherit = False
-    tf3 = box2.text_frame
-    tf3.word_wrap = True
-    tf3.vertical_anchor = MSO_ANCHOR.MIDDLE
-    tf3.margin_left = Inches(0.25)
-    p = tf3.paragraphs[0]
-    r = p.add_run()
-    r.text = "L3 在 generate 之前短路：零工具、零模型，断网也出模板 + 资源卡。"
-    _font(r, BODY, ACC_D, True)
+    table(slide, ["现在的选择", "它给了什么", "缺了什么"], rows,
+          LEFT, 3.22, 11.6, [3.0, 5.2, 3.4], size=15, head_h=0.45, row_h=0.7)
+    tf = textbox(slide, LEFT, 5.95, WIDTH, 0.9, 17, MUTED)
+    line(tf, "所以我们不做“测评”，也不做“AI 医生”：先让人找到一件现在就能做的事，出事的时候先给一个号码。",
+         17, MUTED, first=True, spacing=1.3)
 
 
-def slide_scope(prs):
-    s = new_slide(prs)
-    head(s, 9, "设计过程①", "五份计划书，砍成一份执行书")
-    tf = textbox(s, LEFT, 2.0, WIDTH, 0.6)
-    line(tf, "我们删掉了大约 60% 的想法。", size=MID, color=ACC_D, bold=True, first=True)
-    bullets(s, LEFT, 2.75, WIDTH, 4.1, [
-        "5 份计划书 → 1 份执行书：3 角色 / 3 决策层 / 20 条规则 / 11 个契约",
-        "拆成 26 个可单独验证、可单独回滚的步骤，每步都有可勾选的出口",
-        "六级砍单表：主题 → lorebook → 角色 → 打卡 → 面板 → 聚合，按顺序砍",
-        "砍单只砍体验：guardian、20 条规则、测试、免责声明、资源卡不许砍",
-    ])
+def s04_users(prs):
+    slide = new_slide(prs)
+    head(slide, 4, "用户与场景", "三种人，三个晚上")
+    tf = textbox(slide, LEFT, 2.2, 5.4, 0.4, 16, ACC_D, True)
+    line(tf, "三种人", 16, ACC_D, True, first=True)
+    bullets(slide, LEFT, 2.62, 5.4, 3.4, [
+        "说不出口的人：明明难受，觉得“这算什么大事”。",
+        "想找个地方待着的人：不要建议，也不想被分析。",
+        "担心朋友的人：想帮，怕说错，也怕担责任。",
+    ], size=17, gap=16)
+    tf = textbox(slide, 6.9, 2.2, 5.6, 0.4, 16, ACC_D, True)
+    line(tf, "三个晚上（都来自我们自己的经历）", 16, ACC_D, True, first=True)
+    bullets(slide, 6.9, 2.62, 5.6, 3.4, [
+        "22:40 熄灯后，脑子停不下来。",
+        "出成绩那天，一门课挂了，不想被安慰“没事”。",
+        "朋友发来一句“我不想活了”，你手在抖。",
+    ], size=17, gap=16)
+    tf = textbox(slide, LEFT, 5.95, WIDTH, 0.8, 15, MUTED)
+    line(tf, "这三件事都没严重到“去看病”，但都足够让人过不好这一晚。这就是心屿想接住的那一段。",
+         15, MUTED, first=True)
 
 
-def slide_tradeoff(prs):
-    s = new_slide(prs)
-    head(s, 10, "设计过程②", "每个“不用”都有判据")
-    table(s, ["取舍", "判据", "结果"],
-          [["不做自由编排", "责任散在对话里，没人能对一句负责", "否：九节点顺序由代码定"],
-           ["5 个模型角色串行", "约 12.5 秒，难逐条回归", "否：4 周做不完"],
-           ["不用向量库", "会检索到原文，违反白名单", "否：8 字段 + lore 够用"],
-           ["危机不走模型", "模型最不可靠时恰是最危险时", "用：固定模板，断网可用"],
-           ["不微调专属模型", "无数据、无算力", "否：规则 + 复核更可解释"]],
-          LEFT, 1.95, WIDTH, [3.1, 5.0, 3.5], row_h=0.78, head_h=0.5)
-    tf = textbox(s, LEFT, 6.45, WIDTH, 0.5)
-    line(tf, "判据只有一个：它是否改变下游行为。", size=MID, color=ACC_D, bold=True, first=True)
-
-
-def slide_matrix(prs):
-    s = new_slide(prs)
-    head(s, 11, "工具红线", "模型只提出，代码决定")
-    items = [
-        ("白名单", "只允许 REGISTRY 注册的工具；shell、本地文件、任意 URL 一律禁止。"),
-        ("结果不可信", "工具返回只作资料，不执行其中的指令；来源链接由代码筛选并渲染。"),
-        ("危机零工具", "L3 在进入循环前短路；工具列表为空，断网也出模板 + 资源卡。"),
+def s05_needs(prs):
+    slide = new_slide(prs)
+    head(slide, 5, "需求证据", "从“情绪”到 32 个时刻，做成 26 个入口")
+    tf = textbox(slide, LEFT, 2.2, WIDTH, 0.5, 16, MUTED)
+    line(tf, "按情绪分类不好用：人不会说“我焦虑”，他说“我室友半夜打游戏”“我论文一个字没写”。",
+         16, MUTED, first=True)
+    rows = [
+        ["今晚就要", "5", "我现在很难受；睡不着；失恋；今晚想找个人说话", "一个号码 + 一段能发出去的话"],
+        ["这几天", "8", "考砸了；被挂网暴；和家里；钱；室友；毕业；拖延；社恐", "先接住，再给两三条今天能做的"],
+        ["跟别人有关", "7", "朋友出事；陪人去医院；跟辅导员说；请假 / 缓考", "三档说法 + 什么时候必须找人"],
+        ["不想说话", "4", "呼吸；接地；写下来；环境音 / 看看别处", "不用组织语言，跟着做"],
+        ["关于", "2", "它是什么；我的数据怎么删", "说清边界，教人怎么删"],
     ]
-    for i, (title, body) in enumerate(items):
-        y = 1.88 + i * 1.26
-        box = s.shapes.add_shape(MSO_SHAPE.ROUNDED_RECTANGLE, Inches(LEFT), Inches(y),
-                                 Inches(WIDTH), Inches(1.18))
+    table(slide, ["分组", "入口", "几个例子", "给什么"], rows,
+          LEFT, 2.78, 11.6, [2.3, 1.0, 5.6, 2.7], size=13, head_h=0.42, row_h=0.58)
+    tf = textbox(slide, LEFT, 6.3, WIDTH, 0.5, 14, ACC_D, True)
+    line(tf, "共 32 个时刻 → 26 个入口 → 每张页结构固定：先接住 / 可照抄 / 别做 / 硬线 / 60 秒出口",
+         14, ACC_D, True, first=True)
+
+
+def s06_home(prs):
+    slide = new_slide(prs)
+    head(slide, 6, "产品 · 第一屏", "五个按钮，不是一个空输入框")
+    pic(slide, SHOT / "01-home.png", LEFT, 2.2, 6.0)
+    bullets(slide, 7.15, 2.3, 5.2, 3.6, [
+        "先问“想做什么”，而不是“想说什么”。",
+        "四个板块、十七个入口。",
+        "页尾三个号码不折叠，任何一页都能看到。",
+    ], size=15, gap=14)
+    tf = textbox(slide, 7.15, 5.65, 5.2, 0.9, 12, MUTED)
+    line(tf, "2026-11-23 本地版本，离线演示模式截图；对话为自拟。", 12, MUTED, first=True)
+
+
+def s07_index(prs):
+    slide = new_slide(prs)
+    head(slide, 7, "产品 · 索引", "26 个入口，接住 32 个时刻")
+    pic(slide, SHOT / "02-index.png", LEFT, 2.2, 6.0)
+    bullets(slide, 7.15, 2.3, 5.2, 3.6, [
+        "用一句人真的会说出口的话当标题。",
+        "每张页都有“可照抄”的句子和红框硬线。",
+        "能搜词：室友、失眠、钱、挂科。",
+    ], size=15, gap=14)
+    tf = textbox(slide, 7.15, 5.65, 5.2, 0.9, 12, MUTED)
+    line(tf, "页面不调用模型：断网也能看，也不会因为模型抽风给出奇怪的话。", 12, MUTED, first=True)
+
+
+def s08_crisis(prs):
+    slide = new_slide(prs)
+    head(slide, 8, "产品 · 出事的时候", "先给一个号码，不给选择题")
+    pic(slide, SHOT / "03-crisis.png", LEFT, 2.2, 6.0)
+    bullets(slide, 8.75, 2.25, 3.7, 3.9, [
+        "按时段只推一个号：深夜 12356，工作日校中心。",
+        "给三句能直接发出去的话。",
+        "这一段不经过模型：号码、地址都写死在代码里。",
+    ], size=15, gap=14)
+    tf = textbox(slide, 7.15, 5.75, 5.2, 0.8, 12, MUTED)
+    line(tf, "我们试过让模型写这一段：它会漏号码、编地址、在不该多话的时候多话。", 12, MUTED, first=True)
+
+
+def s09_safety(prs):
+    slide = new_slide(prs)
+    head(slide, 9, "安全", "三道关，和一条只能往上抬的线")
+    steps = [("第一道 · 规则", "20 条写死的规则先跑；命中危险直接进危机页，连模型都不调用"),
+             ("第二道 · 复核", "规则没命中时才问一次模型；超时就按原等级，绝不因为超时而降级"),
+             ("第三道 · 拦截", "回复写出来后再检查：诊断、承诺保密、句数；不通过就改写或换固定话")]
+    y = 2.2
+    for name, desc in steps:
+        box = slide.shapes.add_shape(MSO_SHAPE.ROUNDED_RECTANGLE, Inches(LEFT), Inches(y),
+                                     Inches(7.2), Inches(1.15))
         box.fill.solid()
-        box.fill.fore_color.rgb = SOFT if i % 2 == 0 else WHITE
+        box.fill.fore_color.rgb = SOFT
         box.line.color.rgb = LINE
-        box.shadow.inherit = False
+        box.adjustments[0] = 0.08
         tf = box.text_frame
         tf.word_wrap = True
+        tf.margin_left = Inches(0.25)
         tf.vertical_anchor = MSO_ANCHOR.MIDDLE
-        tf.margin_left = Inches(0.28)
-        tf.margin_right = Inches(0.2)
-        p = tf.paragraphs[0]
-        r = p.add_run()
-        r.text = title
-        _font(r, MID, ACC_D, True)
-        p.alignment = PP_ALIGN.LEFT
-        q = tf.add_paragraph()
-        q.alignment = PP_ALIGN.LEFT
-        q.space_before = Pt(3)
-        rr = q.add_run()
-        rr.text = body
-        _font(rr, BODY, INK)
-    box = s.shapes.add_shape(MSO_SHAPE.ROUNDED_RECTANGLE, Inches(LEFT), Inches(5.85),
-                             Inches(WIDTH), Inches(0.9))
-    box.fill.solid()
-    box.fill.fore_color.rgb = SOFT
-    box.line.color.rgb = LINE
-    box.shadow.inherit = False
-    tf = box.text_frame
-    tf.word_wrap = True
-    tf.vertical_anchor = MSO_ANCHOR.MIDDLE
-    tf.margin_left = Inches(0.28)
-    p = tf.paragraphs[0]
-    r = p.add_run()
-    r.text = "预算硬上限：3 步 / 2 次工具 / 20 秒 / 单工具 6 秒 / 2 MB；超限 ok=False 走兜底。"
-    _font(r, BODY, ACC_D, True)
+        line(tf, name, 18, ACC_D, True, first=True, space_after=2)
+        line(tf, desc, 14, INK)
+        y += 1.35
+    quote(slide, 8.35, 2.2, 4.1, 3.85,
+          "只升不降：\n任何一层出错\n（超时 / 乱码 / 断网），\n风险等级只能往上抬。\n\n判危险 → 可能是一个人的命；\n判安全 → 最多多问一句\n“你现在安全吗”。", 14)
+    tf = textbox(slide, LEFT, 6.35, 11.6, 0.5, 14, MUTED)
+    line(tf, "危机模板 126 个字，是写死的；我们改了十几版，最早那版会追问“发生了什么”，被删掉了。",
+         14, MUTED, first=True)
 
 
-def slide_shots(prs):
-    s = new_slide(prs)
-    head(s, 12, "核心功能演示", "三个状态，四种证据")
-    items = [
-        ("02-tired.png", "陪伴 · 倾听者", "L1 · 先接住情绪，不给建议"),
-        ("03-advice.png", "切换 · 引导者", "L1 · 问的是方法，角色由规则切"),
-        ("05-crisis.png", "危机 · 危机支持", "L3 · 3 张资源卡 12356 / 110·120 / 校心理中心"),
-        ("12-offline-crisis.png", "断网 · 模型不可用", "照样出卡：危机回复不经过模型"),
+def s10_collab(prs):
+    slide = new_slide(prs)
+    head(slide, 10, "怎么和 AI 一起做", "说清楚 → 让它做 → 自己验")
+    tf = textbox(slide, LEFT, 2.2, 6.0, 0.4, 16, ACC_D, True)
+    line(tf, "每天的三步", 16, ACC_D, True, first=True)
+    bullets(slide, LEFT, 2.62, 6.0, 3.3, [
+        "说清楚：背景、范围（只改哪几个文件）、验收标准。",
+        "让它做：一次一件事；说三件，它会做一半、剩下一半自己发挥。",
+        "自己验：跑检查、开页面、看截图、故意弄坏一次。",
+    ], size=16, gap=16)
+    tf = textbox(slide, 7.2, 2.2, 5.3, 0.4, 16, ACC_D, True)
+    line(tf, "我们给它立的四条规矩", 16, ACC_D, True, first=True)
+    bullets(slide, 7.2, 2.62, 5.3, 3.3, [
+        "一个文件只干一件事，超长就拆。",
+        "新功能加开关，出问题一键回旧行为。",
+        "安全判断只许升，不许降。",
+        "每次改完三条全绿才提交：检查、接口、页面。",
+    ], size=16, gap=14)
+    quote(slide, LEFT, 6.0, 11.6, 0.75,
+          "“它说已完成”不等于完成：验收永远在我们这边。", 16)
+
+
+def s11_prompts(prs):
+    slide = new_slide(prs)
+    head(slide, 11, "怎么和 AI 一起做", "我们真实说过的六句话")
+    rows = [
+        ["把 28 条规则用例编号写进测试，一条测试只断言一件事", "拆成一条一断言，编号对上文档", "坏一条能立刻定位"],
+        ["有些页面内部还保留了“回首页”，已经多余了，删除类似的", "删四处，补五条检查", "出口只剩两个"],
+        ["在左侧栏加一个“与心屿交流一下”的选项，不管在什么页面", "新增入口 + 十条检查", "任何页面一步回聊天"],
+        ["每个界面都在这个位置加一个返回上一级的按键", "三轮改成页首按钮 + 页面栈", "七张截图验收"],
+        ["用更强的提示词结构来弥补，你有什么建议吗", "给四条建议并排优先级", "先做前两条"],
+        ["试一下第 4 条吧，设置好回滚", "做实验，诚实报告“更差”", "默认关掉，代码留着"],
     ]
-    cw, gap = 5.75, 0.55
-    for i, (fname, cap, note) in enumerate(items):
-        x = LEFT + (i % 2) * (cw + gap)
-        y = 1.95 + (i // 2) * 2.55
-        pic(s, SHOTS / fname, x, y, w=3.3)
-        tf = textbox(s, x + 3.45, y + 0.1, 2.3, 2.2)
-        line(tf, cap, size=BODY, color=ACC_D, bold=True, first=True, spacing=1.1)
-        line(tf, note, size=BODY, color=INK, space_before=8, spacing=1.1)
+    table(slide, ["我们说的话（原话）", "它做了什么", "结果"], rows,
+          LEFT, 2.18, 11.6, [6.2, 3.2, 2.2], size=13, head_h=0.42, row_h=0.58)
+    tf = textbox(slide, LEFT, 6.25, WIDTH, 0.5, 14, ACC_D, True)
+    line(tf, "共同点：有具体动作、有范围、有验收标准；而不是“帮我优化一下”。", 14, ACC_D, True, first=True)
 
 
-def slide_safety(prs):
-    s = new_slide(prs)
-    head(s, 13, "安全机制", "模型没有否决权")
-    items = [
-        "规则层：20 条规则（X 5 / H 10 / W 5），小句切分，四类豁免先跑",
-        "聚合：5 轮窗口，窗口内出现 L2 就抬 L2，三次 L2 升 L3",
-        "短路：判为 L3 立即返回固定模板 + 资源卡，不调用模型",
-        "工具门禁：每次执行前查白名单 / 参数 / 等级，L3 直接拒绝",
-        "守卫：四类硬违规直接重写，其余交模型复核（温度 0.2）",
-        "复检：重写后再过同一套检查，仍不过就换安全兜底句",
+def s12_errors(prs):
+    slide = new_slide(prs)
+    head(slide, 12, "怎么和 AI 一起做", "它出错的六次，和留下的东西")
+    rows = [
+        ["30 条回复全部以“嗯”开头", "抽样盲评：10 条样本 10 个“嗯”", "删掉“开口先一个字”"],
+        ["危机模板自称 108 字，实际 126 字", "按不计换行重数，改成 126", "加了字数与号码断言"],
+        ["依赖清单里带中文注释，安装报错", "换一台电脑装了一遍", "改纯英文，写进红线"],
+        ["写文件时目录创建放在异常保护外", "故意设成不可写", "只写一行日志，对话继续"],
+        ["把“收拾房间”判成日常", "整理新一批测试句时发现全漏", "先填事实再下结论"],
+        ["用命令行改中文源码，整份变乱码", "打开文件发现全是问号", "中文文件只用编辑器写"],
     ]
-    bullets(s, LEFT, 1.9, WIDTH, 4.0, items, gap=8)
-    box = s.shapes.add_shape(MSO_SHAPE.ROUNDED_RECTANGLE, Inches(LEFT), Inches(5.95),
-                             Inches(WIDTH), Inches(0.9))
-    box.fill.solid()
-    box.fill.fore_color.rgb = SOFT
-    box.line.color.rgb = LINE
-    box.shadow.inherit = False
-    tf = box.text_frame
-    tf.word_wrap = True
-    tf.vertical_anchor = MSO_ANCHOR.MIDDLE
-    tf.margin_left = Inches(0.25)
-    p = tf.paragraphs[0]
-    r = p.add_run()
-    r.text = "一票否决：guardian 不通过，这句就不发。"
-    _font(r, MID, ACC_D, True)
+    table(slide, ["它写了什么", "我们怎么发现", "怎么改 / 留下了什么"], rows,
+          LEFT, 2.18, 11.6, [4.9, 3.9, 2.8], size=13, head_h=0.42, row_h=0.58)
+    tf = textbox(slide, LEFT, 6.25, WIDTH, 0.5, 14, MUTED)
+    line(tf, "每一次都留下一个测试、一条规则或一个习惯——而不是只改一次。", 14, MUTED, first=True)
 
 
-def slide_memory(prs):
-    s = new_slide(prs)
-    head(s, 14, "记忆设计", "记住标签，不记原话")
-    pic(s, SHOTS / "08-refresh-memory.png", LEFT, 1.95, w=4.4)
-    bullets(s, LEFT + 4.75, 1.95, 6.85, 3.6, [
-        "8 个白名单字段 + 1 个摘要位置，其余一律不落盘",
-        "写入前 scrub 手机 / 证件 / 邮箱 / 链接 / 学校名，再截断",
-        "每 5 轮或超 200 字，压成 120 字第三人称摘要，禁止人名",
-        "面板可读、可改两项偏好、可导出、可一键真删（含备份）",
-    ], gap=9)
-    tf = textbox(s, LEFT + 4.75, 5.75, 6.85, 1.1)
-    line(tf, "云端容器磁盘是临时的：演示时同一会话连续操作，不承诺长期存储。",
-         size=BODY, color=MUTED, first=True, spacing=1.15)
+def s13_experiments(prs):
+    slide = new_slide(prs)
+    head(slide, 13, "怎么和 AI 一起做", "三个“AI 说不服我们”的实验")
+    rows = [
+        ["让三个模型投票", "12 组里只多捞回 1 条危险句，还多误判 1 条", "不做：安全不能被多数票推翻"],
+        ["只抽事实、等级由代码算", "危险 10/12→9/12；日常 11/12→7/12", "关掉：更差。代码留下当零件"],
+        ["教它“收尾”是什么", "危险 8/12→9/12，日常零新增误判", "采纳，但没达到我们定的 10/12"],
+    ]
+    table(slide, ["实验", "结果", "决定"], rows,
+          LEFT, 2.3, 11.6, [3.6, 5.4, 2.6], size=15, head_h=0.45, row_h=0.95)
+    quote(slide, LEFT, 5.78, 11.6, 1.1,
+          "三个实验都提前写了回滚条件：两个被回滚，一个被采纳但没达到目标——材料里如实写 9，不写“基本达到”。", 15)
 
 
-def slide_data(prs):
-    s = new_slide(prs)
-    head(s, 15, "测试与数据", "每个数字都有分子分母")
-    table(s, ["指标", "结果", "目标"],
-          [["高危召回（10 条）", "10/10 = 100%", "≥ 90%"],
-           ["日常误拦（20 条）", "0/20 = 0%", "≤ 15%"],
-           ["角色准确率（12 条）", "12/12 = 100%", "≥ 75%"],
-           ["连续 10 轮稳定", "10/10", "10/10"],
-           ["自动化测试", "176 条，AGENT_LOOP 双跑", "考核口径 48"],
-           ["契约 / 工具错误码", "11+5+20 / 7 类", "全绿"]],
-          LEFT, 1.9, WIDTH, [4.3, 5.0, 2.3], row_h=0.5, head_h=0.5)
-    tf = textbox(s, LEFT, 5.55, WIDTH, 0.9)
-    line(tf, "三句局限：样本自拟、高危样本只有 10 条、真实搜索 provider 未接通。",
-         size=BODY, color=ACC_D, bold=True, first=True, spacing=1.2)
+def s14_cut(prs):
+    slide = new_slide(prs)
+    head(slide, 14, "创新点", "我们没做什么")
+    tf = textbox(slide, LEFT, 2.2, 5.6, 0.4, 16, ACC_D, True)
+    line(tf, "删掉的", 16, ACC_D, True, first=True)
+    bullets(slide, LEFT, 2.6, 5.6, 3.9, [
+        "首页 18 张卡片 → 4 组 17 个入口。",
+        "每页里面的“回首页” → 只留两个出口。",
+        "表情和贴纸 → 真人反馈“像客服”。",
+        "“识别所有危机”这种宣传语 → 改成写清漏报几条。",
+    ], size=15, gap=12)
+    tf = textbox(slide, 6.9, 2.2, 5.6, 0.4, 16, ACC_D, True)
+    line(tf, "三个取舍", 16, ACC_D, True, first=True)
+    rows = [
+        ["判断写死在代码里", "让模型自己判断危险"],
+        ["只记八个标签", "记住整段对话"],
+        ["先给一个号码", "一次列五个资源"],
+    ]
+    table(slide, ["我们选了", "放弃了"], rows, 6.9, 2.6, 5.55, [3.15, 2.4],
+          size=14, head_h=0.42, row_h=0.62)
+    tf = textbox(slide, 6.9, 5.1, 5.55, 0.9, 13, MUTED)
+    line(tf, "理由：这个产品的价值不在能做什么，而在该停的时候停得住。", 13, MUTED, first=True, spacing=1.3)
 
 
-def slide_team(prs):
-    s = new_slide(prs)
-    head(s, 16, "团队协作", "每个人都能被追问")
-    table(s, ["成员", "主责", "备份"],
-          [["P1 队长", "memory.py、契约、整合、进度", "P2"],
-           ["P2", "agent.py、人设 prompt", "P1"],
-           ["P3", "guardian.py、RULES 20 条", "P4"],
-           ["P4", "coordinator.py、会话聚合", "P3"],
-           ["P5", "orchestrator.py、app.py、资源卡、主题", "P6"],
-           ["P6", "测试、部署、文档、录屏", "P5"]],
-          LEFT, 1.95, WIDTH, [2.1, 7.0, 2.5], row_h=0.56, head_h=0.5)
-    tf = textbox(s, LEFT, 6.2, WIDTH, 0.6)
-    line(tf, "26 个可回滚步骤 · 50+ 次提交 · 5 个版本节点（v0.1 ~ v2.0）· 结对互看",
-         size=BODY, color=MUTED, first=True)
+def s15_shots(prs):
+    slide = new_slide(prs)
+    head(slide, 15, "成果", "它现在长什么样")
+    pic(slide, SHOT / "04-chat.png", LEFT, 2.2, 5.7)
+    pic(slide, SHOT / "06-rolecard.png", 6.95, 2.2, 5.7)
+    tf = textbox(slide, LEFT, 6.55, 5.7, 0.35, 12, MUTED)
+    line(tf, "聊天：侧栏把风险等级、当前角色、记忆都摊开", 12, MUTED, first=True)
+    tf = textbox(slide, 6.95, 6.55, 5.7, 0.35, 12, MUTED)
+    line(tf, "角色卡：七条说明必须勾选才可开始", 12, MUTED, first=True)
 
 
-def slide_value(prs):
-    s = new_slide(prs)
-    head(s, 17, "价值与展望", "它不治病，它只保证不添乱")
-    bullets(s, LEFT, 1.95, WIDTH, 3.6, [
-        "价值：给“还没到看病的程度、但今晚很难”的人一个不添乱的出口",
-        "价值：把安全做成可审计的结构，而不是一句“我们会注意”",
-        "限制：不是治疗、不做筛查、没有真人转介闭环、没有真人用户测试",
-        "下一步：接真实搜索 provider（P3b）、补五人设盲读（P5b）、扩大误拦样本",
-    ], gap=11)
-    tf = textbox(s, LEFT, 5.75, WIDTH, 0.6)
-    line(tf, "不诊断，不承诺保密，不替代真人。", size=MID, color=ACC_D, bold=True, first=True)
+def s16_data(prs):
+    slide = new_slide(prs)
+    head(slide, 16, "数据", "我们最信的那七十秒")
+    nums = [("828", "条自动检查", "八组：规则与安全 163 / 对话 124 / 记忆 76 / 角色卡 125 / 页面 212 / 网络 43 / 测验 27 / 故障 58"),
+            ("70 秒", "跑完全部检查", "每次改完都跑；任何一项退步就不提交"),
+            ("8", "个版本", "v0.1 11-08 → v3.2 11-20 → 11-23 的 828；76 次提交"),
+            ("4", "项指标全达标", "危险句接住 10/10；日常误报 0/20；角色判断 12/12；十轮连续 10/10")]
+    y = 2.2
+    for big, label, desc in nums:
+        tf = textbox(slide, LEFT, y, 2.5, 0.75, 34, ACC_D, True)
+        line(tf, big, 34, ACC_D, True, first=True, spacing=1.0)
+        tf = textbox(slide, 3.5, y + 0.02, 1.9, 0.4, 15, INK, True)
+        line(tf, label, 15, INK, True, first=True)
+        tf = textbox(slide, 5.3, y + 0.02, 7.2, 0.6, 12, MUTED)
+        line(tf, desc, 12, MUTED, first=True, spacing=1.25)
+        y += 1.15
+
+
+def s17_team(prs):
+    slide = new_slide(prs)
+    head(slide, 17, "团队与价值", "六个人，各管一件事的验收")
+    rows = [
+        ["需求与内容", "32 个时刻、26 张内容页", "写每页的“先接住 / 可照抄 / 别做 / 硬线 / 60 秒出口”"],
+        ["安全与规则", "20 条规则、126 字危机模板", "造测试句、对着漏报一条条补"],
+        ["对话与提示词", "三种身份、四次提示词实验", "定句数、跑对照、决定哪一版留下"],
+        ["页面与交互", "首页、索引、返回键", "提需求、拍截图、验收每个入口"],
+        ["记忆与数据", "八个标签、逐类删除", "定记什么、不记什么，写删除的检查"],
+        ["材料与验收", "文档、PPT、录屏、证据", "每个数字追到证据文件，跑全套检查"],
+    ]
+    table(slide, ["角色", "管什么", "具体做了什么"], rows,
+          LEFT, 2.15, 11.6, [2.6, 4.2, 4.8], size=13, head_h=0.42, row_h=0.55)
+    tf = textbox(slide, LEFT, 6.2, WIDTH, 0.55, 13, MUTED)
+    line(tf, "价值：在一个人还没准备找真人之前，先不让他一个人待着，并在危险的时候把人推向真人。",
+         13, MUTED, first=True)
 
 
 def main():
     prs = Presentation()
     prs.slide_width = Inches(13.333)
     prs.slide_height = Inches(7.5)
-
-    builders = [
-        slide_cover, slide_idea, slide_user, slide_problem, slide_evidence,
-        slide_solution, slide_stack, slide_flow, slide_scope, slide_tradeoff,
-        slide_matrix, slide_shots, slide_safety, slide_memory, slide_data,
-        slide_team, slide_value,
-    ]
-    for i, fn in enumerate(builders, 1):
-        if fn is slide_cover:
-            fn(prs, i)
-        else:
-            fn(prs)
-
+    for build in (s01_cover, s02_who, s03_problem, s04_users, s05_needs, s06_home,
+                  s07_index, s08_crisis, s09_safety, s10_collab, s11_prompts,
+                  s12_errors, s13_experiments, s14_cut, s15_shots, s16_data, s17_team):
+        build(prs)
+    OUT.parent.mkdir(parents=True, exist_ok=True)
     prs.save(OUT)
-    print("saved", OUT)
-    print("slides", len(prs.slides._sldIdLst))
+    print("saved", OUT, len(prs.slides._sldIdLst))
 
 
 if __name__ == "__main__":
     main()
+

@@ -15,12 +15,6 @@ import word_games
 from ui_common import home_enabled
 
 
-def _back() -> None:
-    if st.button("回首页", key="relax_home"):
-        st.session_state["mode"] = "home"
-        st.rerun()
-
-
 def _breath() -> None:
     st.caption("跟着圆圈就好，不用屏息；头晕或不舒服就停下来。")
     relax_media.render_breath()
@@ -114,25 +108,27 @@ def _links() -> None:
     st.caption("如果不想开新页面，也可以回到首页选一个本地的小练习。")
 
 
+# 九个本地页的标题与渲染函数：路由、首页入口与索引目标校验共用这一份。
+PAGES = {
+    "breath": ("跟着呼吸", _breath),
+    "ground": ("5-4-3-2-1 接地", _ground),
+    "break": ("一分钟微休息", _break),
+    "journal": ("写下来", _journal),
+    "sound": ("环境音", _sound),
+    "links": ("看看别处", _links),
+    "brain": ("脑筋急转弯", lambda: word_games.render("brain")),
+    "riddle": ("猜谜语", lambda: word_games.render("riddle")),
+    "idiom": ("成语接龙", lambda: word_games.render("idiom")),
+}
+
+
 def render() -> None:
     """按 relax_page 画一页；默认呼吸页。"""
     if not home_enabled():
         st.session_state["mode"] = "companion"
         st.rerun()
     page = st.session_state.get("relax_page", "breath")
-    pages = {
-        "breath": ("跟着呼吸", _breath),
-        "ground": ("5-4-3-2-1 接地", _ground),
-        "break": ("一分钟微休息", _break),
-        "journal": ("写下来", _journal),
-        "sound": ("环境音", _sound),
-        "links": ("看看别处", _links),
-        "brain": ("脑筋急转弯", lambda: word_games.render("brain")),
-        "riddle": ("猜谜语", lambda: word_games.render("riddle")),
-        "idiom": ("成语接龙", lambda: word_games.render("idiom")),
-    }
-    title, draw = pages.get(page, pages["breath"])
+    title, draw = PAGES.get(page, PAGES["breath"])
     st.subheader(title)
-    _back()
     st.caption("这里不判断你的状态，也不打分；随时可以停。")
     draw()

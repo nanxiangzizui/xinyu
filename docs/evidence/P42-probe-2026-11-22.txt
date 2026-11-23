@@ -1,0 +1,9 @@
+P42 sidebar talk entry — probe (2026-11-22)
+base: MOCK_LLM=1, http://127.0.0.1:8517, headless Edge + CDP 9224, viewport 1360x920
+probe home {"matches":1,"hasTalk":true,"talkText":"与心屿交流一下","talkDisabled":false,"talkTop":76,"talkLeft":20,"sidebarLeft":0,"sidebarRight":300,"inSidebar":true,"themeTop":132,"talkAboveTheme":true,"hasChatInput":false,"hasBack":true,"backTop":96}
+probe help-self {"matches":1,"hasTalk":true,"talkText":"与心屿交流一下","talkDisabled":false,"talkTop":76,"talkLeft":20,"sidebarLeft":0,"sidebarRight":300,"inSidebar":true,"themeTop":132,"talkAboveTheme":true,"hasChatInput":false,"hasBack":true,"backTop":96}
+probe companion {"matches":1,"hasTalk":true,"talkText":"与心屿交流一下","talkDisabled":true,"talkTop":76,"talkLeft":20,"sidebarLeft":0,"sidebarRight":300,"inSidebar":true,"themeTop":132,"talkAboveTheme":true,"hasChatInput":true,"hasBack":true,"backTop":96}
+probe back-to-help {"matches":1,"hasTalk":true,"talkText":"与心屿交流一下","talkDisabled":false,"talkTop":76,"talkLeft":20,"sidebarLeft":0,"sidebarRight":300,"inSidebar":true,"themeTop":132,"talkAboveTheme":true,"hasChatInput":false,"hasBack":true,"backTop":96}
+shots: 01-home-sidebar-talk.png 02-help-self-sidebar-talk.png 03-companion-talk-disabled.png 04-back-to-help.png
+asserts: every page inSidebar && talkAboveTheme; home/help talkDisabled=false; companion talkDisabled=true && hasChatInput; after back talkDisabled=false; talkTop unchanged (76) across pages
+done

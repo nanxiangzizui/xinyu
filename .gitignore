@@ -40,7 +40,8 @@ data/**
 !.gitkeep
 
 # 脚本 mkdtemp(prefix="p19_") / "p16-" 之后留在根目录的临时会话目录
-p[0-9][0-9][-_]*/
+# 必须锚定根目录：不锚定会在 Windows（core.ignorecase）下把 docs/evidence/P47-* 这类证据目录也吃掉
+/p[0-9][0-9][-_]*/
 
 # ---- 本地人工测试记录（含真人对话，绝不进仓库）----
 真人测试/
@@ -68,3 +69,6 @@ Thumbs.db
 Desktop.ini
 .DS_Store
 .claude/settings.local.json
+
+# Word 打开文档时生成的锁文件（~$xxx.docx）
+~$*

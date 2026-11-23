@@ -133,11 +133,13 @@ GUIDE_WEB = ("拿不准的具体事实（睡眠卫生、食物、路线、政策
              "查不到就说没查到，只给通用做法，不要编。")
 
 
-def guide_block(web_ready: bool = False) -> str:
+def guide_block(web_ready: bool = False, worry: str = "") -> str:
     """A 模式 guide 的帮助段；没配检索时不写"先查一次"，免得模型假装查过。"""
     lines = [GUIDE_HEAD, *GUIDE_RULES]
     if web_ready:
         lines.append(GUIDE_WEB)
+    if worry.strip():            # P34：累积到该说出来；排最后才压得过「不要急着给办法」
+        lines.append(worry.strip())
     return "\n".join(lines)
 
 
@@ -158,22 +160,20 @@ def speech_block(persona: str) -> str:
 def listener_block() -> str:
     """A 模式 listener 的收窄段：陈述句优先、非必要不反问。
 
-    m00002：界面写“倾听者”，但通用规则与人设示例都在教模型每轮问一句，
-    四条回复全以问号收尾。这一段放在 tone_hint 之后，最后一句最有分量。
-    P23 起本轮议程不在这里——它要排在 [最后提醒] 之后，见 listener_todo()。
+    m00002：规则与人设都在教模型每轮问一句，四条回复全问号收尾。P23 起议程在 listener_todo()。
     """
     return "\n".join([LISTENER_HEAD, *LISTENER_RULES, LISTENER_EXAMPLE])
 
 
-def listener_todo(hint: str) -> str:
-    """把本轮议程拼成最后一段；空提示返回空串，不拼一个空标题。
+def listener_todo(hint: str, worry: str = "") -> str:
+    """本轮议程拼成最后一段；空提示返回空串。
 
-    P23（m00039）：人设的 post_history 常写着「不要急着给办法」，议程排在它
-    前面就会被压掉——真实 key 下第 4 轮仍只回「我在这儿」，一次都没出过动作。
-    位置与 guide_block 同理：谁最后说话，谁说了算。
+    P23：人设 post_history 的「不要急着给办法」会压掉前面的议程，必须排最后；
+    P34：担心的话同理，接在议程之后。
     """
-    hint = (hint or "").strip()
-    return f"{LISTENER_TODO_HEAD}\n{hint}" if hint else ""
+    hint, worry = (hint or "").strip(), (worry or "").strip()
+    head = f"{LISTENER_TODO_HEAD}\n{hint}" if hint else ""
+    return "\n".join(x for x in (head, worry) if x)
 
 
 # P23（m00039）：轮次议程。同一个倾听者，第 1 轮和第 4 轮该做的事不一样：前两轮只接住，

@@ -5,7 +5,7 @@ import pathlib
 import sys
 from docx import Document
 from docx.enum.table import WD_TABLE_ALIGNMENT
-from docx.enum.text import WD_ALIGN_PARAGRAPH
+from docx.enum.text import WD_ALIGN_PARAGRAPH, WD_TAB_ALIGNMENT, WD_TAB_LEADER
 from docx.oxml import OxmlElement
 from docx.oxml.ns import qn
 from docx.shared import Cm, Pt, RGBColor
@@ -15,6 +15,7 @@ sys.path.insert(0, str(ROOT / "docs"))
 
 import report_content_a as A
 import report_content_b as B
+import report_content_c as C
 
 OUT = ROOT / "docs" / "01_项目文档.docx"
 INK = RGBColor(0x24, 0x30, 0x44)
@@ -289,8 +290,8 @@ def title_page(doc):
     rows = [
         ("队伍", "6 人小队（分工见第 8 章）"),
         ("产物", "Streamlit 单页应用 + 规则安全层 + 本地记忆"),
-        ("代码规模", "17 个 Python 模块（2,779 行），176 条自动化测试"),
-        ("版本 / 日期", "v2.0 / 2026-11-13"),
+        ("代码规模", "61 个 Python 文件（约 1.1 万行），828 条自动化测试"),
+        ("版本 / 日期", "v3.2 / 2026-11-23"),
     ]
     t = doc.add_table(rows=0, cols=2)
     t.alignment = WD_TABLE_ALIGNMENT.CENTER
@@ -318,26 +319,29 @@ def toc(doc):
         pages = json.loads(map_path.read_text(encoding="utf-8"))
     idx = [str(i) for i in range(1, 10)] + ["A", "B", "C", "D"]
     items = [
-        ("1 项目背景与问题", "1"),
-        ("2 目标用户与需求分析", "3"),
-        ("3 解决方案：三角色与一条安全线", "4"),
-        ("4 技术实现路径", "6"),
-        ("5 安全与记忆机制", "9"),
-        ("6 测试与评估", "12"),
-        ("7 创新点与价值：我们没做什么", "14"),
-        ("8 团队分工与协作过程", "16"),
-        ("9 总结与展望", "17"),
-        ("附录 A　AI 工具使用说明", "A-1"),
-        ("附录 B　28 条规则用例逐条结果", "B-1"),
-        ("附录 C　12 条对话与 8 条故障注入", "C-1"),
-        ("附录 D　仓库、运行说明与证据索引", "D-1"),
+        ("1 起点：一个普通的夜晚", "3"),
+        ("2 谁会用，什么时候用", "5"),
+        ("3 产品是什么", "7"),
+        ("4 我们怎么和 AI 一起做完它", "11"),
+        ("5 安全：先把最坏的情况想一遍", "14"),
+        ("6 它现在长什么样", "17"),
+        ("7 创新点：我们没做什么", "21"),
+        ("8 我们怎么验证它", "22"),
+        ("9 团队分工与总结", "24"),
+        ("附录 A　AI 是怎么参与这个项目的", "A-1"),
+        ("附录 B　20 条规则与 28 个用例的逐条结果", "B-1"),
+        ("附录 C　12 段对话与 8 条故障注入", "C-1"),
+        ("附录 D　仓库、运行与证据", "D-1"),
     ]
     items = [(name, pages.get(key, default)) for (name, default), key in zip(items, idx)]
     for name, page in items:
         par = doc.add_paragraph()
         par.paragraph_format.line_spacing = 1.6
+        par.paragraph_format.tab_stops.add_tab_stop(
+            Cm(TEXT_W), WD_TAB_ALIGNMENT.RIGHT, WD_TAB_LEADER.DOTS
+        )
         par.add_run(name)
-        par.add_run(" " * 6)
+        par.add_run("\t")
         run = par.add_run(page)
         run.font.color.rgb = MUTED
 
@@ -349,6 +353,7 @@ def main():
     toc(doc)
     render(doc, A.BLOCKS)
     render(doc, B.BLOCKS)
+    render(doc, C.BLOCKS)
     OUT.parent.mkdir(parents=True, exist_ok=True)
     doc.save(OUT)
     print("saved", OUT, OUT.stat().st_size)

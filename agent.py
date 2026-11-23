@@ -337,10 +337,11 @@ def build_system_prompt(persona_id: str, memory: dict, lore: list[str]) -> str:
     # 只有排在它后面，"这一轮可以给步骤"才压得住；位置本身是设计的一部分。
     role = str(memory.get("_role") or "")
     if role == "guide":
-        parts.append(style.guide_block(web_ready()))
+        parts.append(style.guide_block(web_ready(), str(memory.get("_worry") or "")))
     elif role == "listener":
         # P23（m00039）：轮次议程同样要压在 [最后提醒] 之后，否则只是废纸。
-        todo = style.listener_todo(str(memory.get("_listener_hint") or ""))
+        todo = style.listener_todo(str(memory.get("_listener_hint") or ""),
+                                   str(memory.get("_worry") or ""))
         if todo:  # P24 ③：开口规则也只有在最后一段才生效（放规则区实测 sent_cv 0.09，这里 0.43）
             parts.append(todo + "\n（后面那句用上对方刚说的那个词，十来字；跟上一句别一样长。）")
     episode = _flat(memory.get("_episode_text"))

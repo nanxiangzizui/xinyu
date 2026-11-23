@@ -14,13 +14,34 @@ def _click(at, key):
     assert not list(at.exception), f"{key} 异常：{list(at.exception)}"
 
 
-def test_home_has_twelve_cards_and_no_chat_input():
+def test_home_has_compact_sections_and_no_chat_input():
     at = Chat(enter=False).at
     assert at.session_state["mode"] == "home"
     assert len(at.chat_input) == 0
     keys = {b.key for b in at.button}
-    assert set(home.LOCAL_PAGES) <= {k.removeprefix("home_") for k in keys}
-    assert {"home_chat", "home_rolecard", "home_quiz", "home_random"} <= keys
+    card_keys = {item[4] for _, items in home.GROUPS for item in items}
+    assert len(home.GROUPS) == 4
+    assert card_keys <= keys
+    assert home.ABOUT[4] in keys
+    assert "home_random" not in keys
+
+
+def test_home_merges_school_and_counsel_entries():
+    """P46：咨询前后不再单独占组，与学校三张页合并；关于心屿收进页尾。"""
+    titles = [title for title, _ in home.GROUPS]
+    assert "要跟学校打交道时" not in titles
+    assert "关于心屿" not in titles
+    merged = {item[4] for _, items in home.GROUPS for item in items}
+    assert {"home_before", "home_after", "home_teacher",
+            "home_leave", "home_accompany"} <= merged
+    assert "home_about" not in merged
+
+
+def test_home_removed_random_button():
+    """P46：删掉页尾「随便来一个」，不再有随机跳转。"""
+    at = Chat(enter=False).at
+    assert "home_random" not in {b.key for b in at.button}
+    assert not [b for b in at.button if "随便" in b.label]
 
 
 def test_home_chat_enters_companion():
@@ -43,7 +64,7 @@ def test_home_relax_card_routes_and_returns():
     _click(at, "home_breath")
     assert at.session_state["mode"] == "relax"
     assert at.session_state["relax_page"] == "breath"
-    _click(at, "relax_home")
+    _click(at, "nav_back")
     assert at.session_state["mode"] == "home"
 
 
@@ -53,15 +74,14 @@ def test_home_quiz_opens_standalone_page():
     assert at.session_state["mode"] == "quiz"
     assert at.session_state["quiz_state"] == "ack"
     assert len(at.chat_input) == 0
-    _click(at, "quiz_page_home")
+    _click(at, "nav_back")
     assert at.session_state["mode"] == "home"
 
 
-def test_home_random_stays_in_local_relax_pages():
+def test_home_about_stays_reachable_from_footer():
     at = Chat(enter=False).at
-    _click(at, "home_random")
-    assert at.session_state["mode"] == "relax"
-    assert at.session_state["relax_page"] in home.LOCAL_PAGES
+    _click(at, "home_about")
+    assert at.session_state["mode"] == "about"
 
 
 def test_home_shows_crisis_resources_without_opening_anything():

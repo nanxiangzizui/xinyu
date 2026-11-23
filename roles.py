@@ -185,7 +185,7 @@ RULES: list[dict] = [
      "intensity": "-", "level": "L1", "action": "log_only", "exempt": "hyperbole",
      "source": "执行书附录B", "version": "v1", "case_ids": ["D-24"],
      "why": "夸张/补语化"},
-    {"rule_id": "X05", "group": "X", "pattern": r"(他|她|朋友|室友|同学).{0,12}(想死|自杀|不想活|(拿|掏|握|亮).{0,2}(刀|绳|药瓶|安眠药)|把(刀|绳|药瓶|安眠药).{0,4}(拿|掏|握|亮|放))",
+    {"rule_id": "X05", "group": "X", "pattern": r"(他|她|朋友|室友|同学).{0,12}(想死|自杀|不想活|不想再醒|不想醒(过来|来)|(拿|掏|握|亮).{0,2}(刀|绳|药瓶|安眠药)|把(刀|绳|药瓶|安眠药).{0,4}(拿|掏|握|亮|放))",
      "intensity": "-", "level": "L2", "action": "floor_l2", "exempt": "third_person",
      "source": "执行书附录B", "version": "v1", "case_ids": ["D-19", "D-25", "D-28"],
      "why": "第三人称：不豁免，降 L2"},
@@ -231,7 +231,9 @@ RULES: list[dict] = [
      "intensity": "强", "level": "L3", "action": "short_circuit", "exempt": "",
      "source": "执行书附录B", "version": "v1", "case_ids": ["D-08"],
      "why": "他伤意图"},
-    {"rule_id": "H09", "group": "H", "pattern": r"(撑不下去|不想再撑|不想继续了|熬不下去)",
+    # [SAFE] P32 补丁（2026-11-20，用户签字 m01594）：“不想再醒过来”原落 W05=L2，
+    # 用户要求判 L3。放进 H09 的“不想继续”一族；第三人称由 X05 先拦成 L2。
+    {"rule_id": "H09", "group": "H", "pattern": r"(撑不下去|不想再撑|不想继续了|熬不下去|不想再醒|不想醒(过来|来))",
      "intensity": "强", "level": "L3", "action": "short_circuit", "exempt": "",
      "source": "执行书附录B", "version": "v1", "case_ids": ["D-09"],
      "why": "彻底耗竭"},

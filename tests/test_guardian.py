@@ -168,6 +168,24 @@ def test_p7b_meaning_needs_subject(text, level, rule_id):
     assert result["level"] == level, (text, result)
     if rule_id is None:
         assert result["rule_ids"] == [], (text, result)
+
+# ── P32：用户签字把“不想再醒过来”从 W05(L2) 抬到 H09(L3)（2026-11-20 m01594）──
+P32_SLEEP_CASES = [
+    ("我不想再醒过来了", "L3", "H09"),
+    ("我已经不想再醒过来了", "L3", "H09"),
+    ("我不想醒来", "L3", "H09"),
+    ("我朋友说不想再醒过来", "L2", "X05"),   # 第三人称先走 X05，不短路到 L3
+    ("我不想醒着面对这些", "L1", None),        # 护栏：别把失眠话术误伤成 L3
+]
+
+
+@pytest.mark.parametrize(("text", "level", "rule_id"), P32_SLEEP_CASES)
+def test_p32_not_waking_is_l3(text, level, rule_id):
+    """“不想再醒/不想醒来”= 不想继续了，判 L3；醒着/第三人称留护栏。"""
+    result = guardian_pre_check(text)
+    assert result["level"] == level, (text, result)
+    if rule_id is None:
+        assert result["rule_ids"] == [], (text, result)
     else:
         assert rule_id in result["rule_ids"], (text, result)
 

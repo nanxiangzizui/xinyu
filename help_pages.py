@@ -1,16 +1,25 @@
-"""help_pages.py — 七张静态页：自己危险 / 朋友出事 / 咨询前 / 咨询后一周 /
-跟辅导员说 / 请假缓考休学 / 陪别人去机构。
+"""help_pages.py — 十七张静态页：自己危险 / 朋友出事 / 咨询前 / 咨询后一周 /
+跟辅导员说 / 请假缓考休学 / 陪别人去机构 / 索引 / 危机之后 / 睡不着 /
+被挂网暴 / 考砸 / 带一页纸 / 失恋 / 室友 / 家里 / 钱。
 
 [SAFE] 不调用 agent / orchestrator / guardian，不判级、不写记忆、不联网。
 文案写死在 crisis_plan 与本文件里；号码只从 resources 取，页面不拼新号。
+P40 起：索引与四张新页在 help_index / help_scenes，带一页纸在 paper；
+P44 起：四张日常页与统一 60 秒出口在 help_daily。
 """
 from __future__ import annotations
 
 import streamlit as st
 
 import crisis_plan
-from resources import CAMPUS_PHONE, pick_resources
-from ui_common import home_enabled
+import help_daily
+import help_index
+import help_more
+import help_scenes
+import paper
+from resources import CAMPUS_PHONE
+from ui_common import copy_block as _copy
+from ui_common import resource_lines as _resources
 
 # 朋友页的三组话：能照着说、别说的、必须立刻找人的信号。
 FRIEND_SAY = (
@@ -153,27 +162,18 @@ TITLES = {
     "teacher": "要跟辅导员 / 老师说",
     "leave": "请假 / 缓考 / 休学：去问之前",
     "accompany": "陪别人去心理中心 / 医院",
+    "index": "我遇到的是…",
+    "aftermath": "刚挺过来，这一晚怎么过",
+    "sleep": "躺下睡不着",
+    "online": "有人在群里挂我 / 发我照片",
+    "exam": "考砸了 / 出分那天",
+    "paper": "带一页纸去咨询",
+    "love": "失恋 / 被拒了",
+    "roommate": "室友 / 宿舍住不下去",
+    "family": "和家里吵完 / 要不要告诉家里",
+    "money": "生活费不够 / 兼职被坑 / 校园贷",
 }
-
-
-def _back() -> None:
-    """首页开关关掉时侧栏没有「回首页」，这里补一个；开着就不放两个一样的按钮。"""
-    if home_enabled():
-        return
-    if st.button("回首页", key="help_home"):
-        st.session_state["mode"] = "companion"
-        st.rerun()
-
-
-def _copy(label: str, text: str) -> None:
-    """一行标签 + 可复制的整句：st.code 自带复制按钮，不依赖任何前端脚本。"""
-    st.markdown(f"**{label}**")
-    st.code(text, language=None)
-
-
-def _resources() -> None:
-    for item in pick_resources("L3", []):
-        st.info(f"{item['title']}：{item['detail']}")
+TITLES.update(help_more.TITLES)
 
 
 def _self() -> None:
@@ -199,6 +199,11 @@ def _self() -> None:
 def _friend() -> None:
     """朋友危险时的页：先教怎么开口，再给"什么时候必须交给人"的硬线。"""
     st.caption("先做三件事：别让他一个人；先听；危险时立刻找人。")
+    with st.expander("还没到出事，但你觉得他最近不太对"):
+        for head, body in help_scenes.FRIEND_EARLY:
+            st.markdown(f"**{head}**")
+            st.markdown(body)
+        st.caption("这里不评估他有没有病，只帮你把话说出口；真到危险，看下面的第 3 节。")
     st.markdown("### 1. 先接住（可以照着说）")
     for label, text in FRIEND_SAY:
         _copy(label, text)
@@ -214,6 +219,7 @@ def _friend() -> None:
     st.markdown("### 4. 你自己也需要被照顾")
     for line in SELF_CARE:
         st.markdown(f"- {line}")
+    help_scenes.friend_extras()
     _resources()
 
 
@@ -311,12 +317,23 @@ def next_step_block(key: str) -> None:
         st.rerun()
 
 
-def render() -> None:
+def render(sid: str = "") -> None:
     """按 help_page 画一页；缺省是自己那页（最坏情况下少一次点击）。"""
     page = st.session_state.get("help_page", "self")
     st.subheader(TITLES.get(page, TITLES["self"]))
-    _back()
-    if page == "friend":
+    if page == "index":
+        help_index.render_body()
+        return
+    if page == "paper":
+        paper.render(sid)
+        return
+    if page in help_scenes.RENDERERS:
+        help_scenes.RENDERERS[page]()
+    elif page in help_daily.RENDERERS:
+        help_daily.RENDERERS[page]()
+    elif page in help_more.RENDERERS:
+        help_more.RENDERERS[page]()
+    elif page == "friend":
         _friend()
     elif page == "before":
         _before()
@@ -330,3 +347,4 @@ def render() -> None:
         _accompany()
     else:
         _self()
+    help_daily.sixty_seconds(page)
